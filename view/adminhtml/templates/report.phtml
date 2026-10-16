@@ -1,0 +1,361 @@
+<?php
+/**
+ * Copyright (c) 2026 Ievgenii Gryshkun (angeo.dev)
+ * MIT License — see LICENSE for full terms.
+ *
+ * @var \Angeo\AgentActivity\Block\Adminhtml\Report $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+declare(strict_types=1);
+
+$filter = $block->getFilter();
+$period = $block->getPeriod();
+$totals = $block->getTotals();
+$previous = $block->getPreviousTotals();
+$agents = $block->getAgents();
+$operations = $block->getOperations();
+$paths = $block->getPaths();
+$funnel = $block->getFunnel();
+$ordersByChannel = $block->getOrdersByChannel();
+$recentOrders = $block->getRecentOrders();
+$status = $block->getStatusMix();
+$errorRate = $totals['calls'] > 0 ? round($totals['errors'] / $totals['calls'] * 100, 1) : 0.0;
+$checked = $totals['verified'] + $totals['spoofed'];
+$hasData = $totals['calls'] > 0 || $totals['orders'] > 0;
+
+$deltaHtml = function (?float $delta) use ($escaper): string {
+    if ($delta === null) {
+        return '<span class="aa-delta aa-delta--none">' . $escaper->escapeHtml(__('no earlier data')) . '</span>';
+    }
+    $class = $delta > 0 ? 'up' : ($delta < 0 ? 'down' : 'flat');
+    $sign = $delta > 0 ? '+' : '';
+    return '<span class="aa-delta aa-delta--' . $class . '">'
+        . $escaper->escapeHtml($sign . $delta . '% ' . __('vs previous period')) . '</span>';
+};
+?>
+<div class="angeo-agents" data-role="angeo-agents-report">
+
+    <form class="aa-filters" method="get" action="<?= $escaper->escapeUrl($block->getPageUrl([])) ?>">
+        <div class="aa-filters__group" role="group" aria-label="<?= $escaper->escapeHtmlAttr(__('Period')) ?>">
+            <?php foreach ($block->getPeriods() as $days): ?>
+                <a class="aa-chip<?= $days === $period ? ' aa-chip--active' : '' ?>"
+                   href="<?= $escaper->escapeUrl($block->getPageUrl(['period' => $days, 'store' => $filter->storeId])) ?>"
+                   <?= $days === $period ? 'aria-current="true"' : '' ?>>
+                    <?= $escaper->escapeHtml(__('Last %1 days', $days)) ?>
+                </a>
+            <?php endforeach; ?>
+        </div>
+        <label class="aa-filters__field">
+            <span><?= $escaper->escapeHtml(__('From')) ?></span>
+            <input type="date" name="from" class="admin__control-text" value="<?= $escaper->escapeHtmlAttr($filter->from) ?>">
+        </label>
+        <label class="aa-filters__field">
+            <span><?= $escaper->escapeHtml(__('To')) ?></span>
+            <input type="date" name="to" class="admin__control-text" value="<?= $escaper->escapeHtmlAttr($filter->to) ?>">
+        </label>
+        <label class="aa-filters__field">
+            <span><?= $escaper->escapeHtml(__('Store view')) ?></span>
+            <select name="store" class="admin__control-select">
+                <option value=""><?= $escaper->escapeHtml(__('All store views')) ?></option>
+                <?php foreach ($block->getStoreOptions() as $id => $label): ?>
+                    <option value="<?= (int) $id ?>"<?= $filter->storeId === $id ? ' selected' : '' ?>>
+                        <?= $escaper->escapeHtml($label) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <button type="submit" class="action-secondary"><?= $escaper->escapeHtml(__('Apply')) ?></button>
+
+        <div class="aa-filters__actions">
+            <a class="action-secondary" href="<?= $escaper->escapeUrl($block->getEventsUrl()) ?>">
+                <?= $escaper->escapeHtml(__('Event log')) ?>
+            </a>
+            <a class="action-secondary" href="<?= $escaper->escapeUrl($block->getExportUrl()) ?>">
+                <?= $escaper->escapeHtml(__('Export CSV')) ?>
+            </a>
+        </div>
+    </form>
+
+    <div class="aa-meta">
+        <?= $escaper->escapeHtml(__(
+            '%1 to %2 (UTC). Totals updated %3; they refresh every hour.',
+            $filter->from,
+            $filter->to,
+            $block->getLastRunLabel()
+        )) ?>
+        <?php if ($block->canRefresh()): ?>
+            <form class="aa-inline" method="post" action="<?= $escaper->escapeUrl($block->getRefreshUrl()) ?>">
+                <?= $block->getBlockHtml('formkey') ?>
+                <button type="submit" class="action-link"><?= $escaper->escapeHtml(__('Refresh now')) ?></button>
+            </form>
+        <?php endif; ?>
+    </div>
+
+    <section class="aa-tiles" aria-label="<?= $escaper->escapeHtmlAttr(__('Summary')) ?>">
+        <div class="aa-tile">
+            <div class="aa-tile__label"><?= $escaper->escapeHtml(__('Agent calls')) ?></div>
+            <div class="aa-tile__value"><?= $escaper->escapeHtml($block->compact($totals['calls'])) ?></div>
+            <?= /* @noEscape */ $deltaHtml($block->delta($totals['calls'], $previous['calls'])) ?>
+        </div>
+        <div class="aa-tile">
+            <div class="aa-tile__label"><?= $escaper->escapeHtml(__('Distinct agents')) ?></div>
+            <div class="aa-tile__value"><?= (int) $totals['agents'] ?></div>
+            <?= /* @noEscape */ $deltaHtml($block->delta($totals['agents'], $previous['agents'])) ?>
+        </div>
+        <div class="aa-tile">
+            <div class="aa-tile__label"><?= $escaper->escapeHtml(__('Agent-built orders')) ?></div>
+            <div class="aa-tile__value"><?= (int) $totals['orders'] ?></div>
+            <?= /* @noEscape */ $deltaHtml($block->delta($totals['orders'], $previous['orders'])) ?>
+        </div>
+        <div class="aa-tile">
+            <div class="aa-tile__label"><?= $escaper->escapeHtml(__('Agent-built revenue')) ?></div>
+            <div class="aa-tile__value aa-tile__value--small"><?= $escaper->escapeHtml($block->formatRevenue($totals['revenue'])) ?></div>
+            <span class="aa-delta aa-delta--none"><?= $escaper->escapeHtml(__('base currency')) ?></span>
+        </div>
+        <div class="aa-tile">
+            <div class="aa-tile__label"><?= $escaper->escapeHtml(__('Error rate')) ?></div>
+            <div class="aa-tile__value"><?= $escaper->escapeHtml($errorRate . '%') ?></div>
+            <span class="aa-delta aa-delta--none"><?= $escaper->escapeHtml(__('%1 calls with 4xx or 5xx', $block->compact($totals['errors']))) ?></span>
+        </div>
+        <div class="aa-tile">
+            <div class="aa-tile__label"><?= $escaper->escapeHtml(__('Spoofed bot calls')) ?></div>
+            <div class="aa-tile__value"><?= $escaper->escapeHtml($block->compact($totals['spoofed'])) ?></div>
+            <span class="aa-delta aa-delta--none">
+                <?= $escaper->escapeHtml($checked > 0
+                    ? __('of %1 checked against vendor IP ranges', $block->compact($checked))
+                    : __('IP check has no data yet')) ?>
+            </span>
+        </div>
+    </section>
+
+    <?php if (!$hasData): ?>
+        <div class="message message-notice">
+            <div>
+                <?= $escaper->escapeHtml(__('No agent activity in this period yet. Logging starts after install; the totals are built every hour by cron. Use "Refresh now" to build them at once.')) ?>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <div class="aa-charts" data-mage-init='<?= $escaper->escapeHtmlAttr('{"Angeo_AgentActivity/js/report-charts": ' . $block->getChartJson() . '}') ?>'>
+        <figure class="aa-card aa-card--wide">
+            <figcaption class="aa-card__title"><?= $escaper->escapeHtml(__('Agent calls per day, by channel')) ?></figcaption>
+            <div class="aa-card__legend" data-legend="daily"></div>
+            <div class="aa-card__plot aa-card__plot--tall"><canvas data-chart="daily" role="img"
+                aria-label="<?= $escaper->escapeHtmlAttr(__('Stacked bar chart of agent calls per day by channel. The table below has the same data.')) ?>"></canvas></div>
+        </figure>
+        <figure class="aa-card">
+            <figcaption class="aa-card__title"><?= $escaper->escapeHtml(__('Calls by agent type')) ?></figcaption>
+            <div class="aa-card__plot"><canvas data-chart="categories" role="img"
+                aria-label="<?= $escaper->escapeHtmlAttr(__('Bar chart of calls by agent type.')) ?>"></canvas></div>
+        </figure>
+        <figure class="aa-card">
+            <figcaption class="aa-card__title"><?= $escaper->escapeHtml(__('Top 10 agents')) ?></figcaption>
+            <div class="aa-card__plot"><canvas data-chart="agents" role="img"
+                aria-label="<?= $escaper->escapeHtmlAttr(__('Bar chart of the ten busiest agents.')) ?>"></canvas></div>
+        </figure>
+        <figure class="aa-card">
+            <figcaption class="aa-card__title"><?= $escaper->escapeHtml(__('Responses by status')) ?></figcaption>
+            <div class="aa-card__plot"><canvas data-chart="status" role="img"
+                aria-label="<?= $escaper->escapeHtmlAttr(__('Bar chart of responses by HTTP status class.')) ?>"></canvas></div>
+        </figure>
+        <?php if ($funnel !== null): ?>
+            <figure class="aa-card">
+                <figcaption class="aa-card__title"><?= $escaper->escapeHtml(__('UCP checkout funnel')) ?></figcaption>
+                <div class="aa-card__plot"><canvas data-chart="funnel" role="img"
+                    aria-label="<?= $escaper->escapeHtmlAttr(__('Funnel: checkouts created, handed to buyer, orders placed.')) ?>"></canvas></div>
+            </figure>
+        <?php endif; ?>
+    </div>
+
+    <h2 class="aa-h2"><?= $escaper->escapeHtml(__('Agents')) ?></h2>
+    <?php if ($agents === []): ?>
+        <p class="aa-empty"><?= $escaper->escapeHtml(__('No agents in this period.')) ?></p>
+    <?php else: ?>
+        <div class="admin__data-grid-wrap">
+            <table class="data-grid aa-table">
+                <thead><tr>
+                    <th class="data-grid-th"><?= $escaper->escapeHtml(__('Agent')) ?></th>
+                    <th class="data-grid-th"><?= $escaper->escapeHtml(__('Operator')) ?></th>
+                    <th class="data-grid-th"><?= $escaper->escapeHtml(__('Type')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Calls')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Errors')) ?></th>
+                    <th class="data-grid-th"><?= $escaper->escapeHtml(__('IP check')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Signed')) ?></th>
+                    <th class="data-grid-th"><?= $escaper->escapeHtml(__('Last seen (UTC)')) ?></th>
+                </tr></thead>
+                <tbody>
+                <?php foreach ($agents as $row): ?>
+                    <tr>
+                        <td><?= $escaper->escapeHtml($row['agent']) ?></td>
+                        <td><?= $escaper->escapeHtml($row['operator']) ?></td>
+                        <td><?= $escaper->escapeHtml($block->categoryLabel($row['category'])) ?></td>
+                        <td class="aa-num"><?= (int) $row['calls'] ?></td>
+                        <td class="aa-num"><?= (int) $row['errors'] ?></td>
+                        <td>
+                            <?php $rowChecked = $row['verified'] + $row['spoofed']; ?>
+                            <?php if ($row['spoofed'] > 0): ?>
+                                <span class="aa-status aa-status--critical">&#9888; <?= $escaper->escapeHtml(__('%1 spoofed', $row['spoofed'])) ?></span>
+                                <span class="aa-muted"><?= $escaper->escapeHtml(__('of %1 checked', $rowChecked)) ?></span>
+                            <?php elseif ($row['verified'] > 0): ?>
+                                <span class="aa-status aa-status--good">&#10003; <?= $escaper->escapeHtml(__('Verified')) ?></span>
+                            <?php elseif ($row['category'] === 'platform'): ?>
+                                <span class="aa-muted" title="<?= $escaper->escapeHtmlAttr(__('Agent platforms are named by their UCP profile, not by IP.')) ?>">&mdash;</span>
+                            <?php else: ?>
+                                <span class="aa-muted"><?= $escaper->escapeHtml(__('No vendor IP list')) ?></span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="aa-num"><?= (int) $row['signed'] ?></td>
+                        <td><?= $escaper->escapeHtml($row['last_day']) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
+
+    <h2 class="aa-h2"><?= $escaper->escapeHtml(__('Agent-built orders')) ?></h2>
+    <?php if ($ordersByChannel === []): ?>
+        <p class="aa-empty"><?= $escaper->escapeHtml(__('No orders from UCP, MCP or WebMCP carts in this period.')) ?></p>
+    <?php else: ?>
+        <div class="admin__data-grid-wrap">
+            <table class="data-grid aa-table">
+                <thead><tr>
+                    <th class="data-grid-th"><?= $escaper->escapeHtml(__('Channel')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Orders')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Revenue')) ?></th>
+                </tr></thead>
+                <tbody>
+                <?php foreach ($ordersByChannel as $row): ?>
+                    <tr>
+                        <td><?= $escaper->escapeHtml($block->channelLabel($row['channel'])) ?></td>
+                        <td class="aa-num"><?= (int) $row['orders'] ?></td>
+                        <td class="aa-num"><?= $escaper->escapeHtml(number_format($row['revenue'], 2) . ' ' . $row['currency']) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php if ($recentOrders !== []): ?>
+            <div class="admin__data-grid-wrap">
+                <table class="data-grid aa-table">
+                    <thead><tr>
+                        <th class="data-grid-th"><?= $escaper->escapeHtml(__('Time (UTC)')) ?></th>
+                        <th class="data-grid-th"><?= $escaper->escapeHtml(__('Order')) ?></th>
+                        <th class="data-grid-th"><?= $escaper->escapeHtml(__('Channel')) ?></th>
+                        <th class="data-grid-th"><?= $escaper->escapeHtml(__('Agent')) ?></th>
+                        <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Total')) ?></th>
+                    </tr></thead>
+                    <tbody>
+                    <?php foreach ($recentOrders as $row): ?>
+                        <tr>
+                            <td><?= $escaper->escapeHtml($row['created_at']) ?></td>
+                            <td>
+                                <?php if ($row['order_id'] > 0): ?>
+                                    <a href="<?= $escaper->escapeUrl($block->getOrderUrl($row['order_id'])) ?>">#<?= $escaper->escapeHtml($row['increment_id']) ?></a>
+                                <?php else: ?>
+                                    #<?= $escaper->escapeHtml($row['increment_id']) ?>
+                                <?php endif; ?>
+                            </td>
+                            <td><?= $escaper->escapeHtml($block->channelLabel($row['channel'])) ?></td>
+                            <td><?= $escaper->escapeHtml($row['agent']) ?></td>
+                            <td class="aa-num"><?= $escaper->escapeHtml(number_format($row['value'], 2) . ' ' . $row['currency']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    <?php endif; ?>
+
+    <h2 class="aa-h2"><?= $escaper->escapeHtml(__('Operations')) ?></h2>
+    <?php if ($operations === []): ?>
+        <p class="aa-empty"><?= $escaper->escapeHtml(__('No calls in this period.')) ?></p>
+    <?php else: ?>
+        <div class="admin__data-grid-wrap">
+            <table class="data-grid aa-table">
+                <thead><tr>
+                    <th class="data-grid-th"><?= $escaper->escapeHtml(__('Channel')) ?></th>
+                    <th class="data-grid-th"><?= $escaper->escapeHtml(__('Operation')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Calls')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Errors')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Avg ms')) ?></th>
+                </tr></thead>
+                <tbody>
+                <?php foreach ($operations as $row): ?>
+                    <tr>
+                        <td><?= $escaper->escapeHtml($block->channelLabel($row['channel'])) ?></td>
+                        <td><code><?= $escaper->escapeHtml($row['operation']) ?></code></td>
+                        <td class="aa-num"><?= (int) $row['calls'] ?></td>
+                        <td class="aa-num<?= $row['errors'] > 0 ? ' aa-bad' : '' ?>"><?= (int) $row['errors'] ?></td>
+                        <td class="aa-num"><?= (int) $row['avg_ms'] ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
+
+    <h2 class="aa-h2"><?= $escaper->escapeHtml(__('Most fetched pages')) ?></h2>
+    <?php if ($paths === []): ?>
+        <p class="aa-empty"><?= $escaper->escapeHtml(__('No page fetches by AI crawlers or agents in this period.')) ?></p>
+    <?php else: ?>
+        <div class="admin__data-grid-wrap">
+            <table class="data-grid aa-table">
+                <thead><tr>
+                    <th class="data-grid-th"><?= $escaper->escapeHtml(__('Path')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Fetches')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Training')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('AI search')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('User-triggered')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Agents')) ?></th>
+                </tr></thead>
+                <tbody>
+                <?php foreach ($paths as $row): ?>
+                    <tr>
+                        <td class="aa-path"><?= $escaper->escapeHtml($row['path']) ?></td>
+                        <td class="aa-num"><?= (int) $row['calls'] ?></td>
+                        <td class="aa-num"><?= (int) $row['training'] ?></td>
+                        <td class="aa-num"><?= (int) $row['search'] ?></td>
+                        <td class="aa-num"><?= (int) $row['user_fetch'] ?></td>
+                        <td class="aa-num"><?= (int) $row['agent'] ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
+
+    <details class="aa-details">
+        <summary><?= $escaper->escapeHtml(__('Chart data as a table')) ?></summary>
+        <?php $daily = $block->getDaily(); ?>
+        <div class="admin__data-grid-wrap">
+            <table class="data-grid aa-table">
+                <thead><tr>
+                    <th class="data-grid-th"><?= $escaper->escapeHtml(__('Day (UTC)')) ?></th>
+                    <?php foreach (array_keys($daily['channels']) as $channel): ?>
+                        <th class="data-grid-th aa-num"><?= $escaper->escapeHtml($block->channelLabel($channel)) ?></th>
+                    <?php endforeach; ?>
+                </tr></thead>
+                <tbody>
+                <?php foreach ($daily['days'] as $i => $day): ?>
+                    <tr>
+                        <td><?= $escaper->escapeHtml($day) ?></td>
+                        <?php foreach ($daily['channels'] as $values): ?>
+                            <td class="aa-num"><?= (int) $values[$i] ?></td>
+                        <?php endforeach; ?>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <ul class="aa-list">
+            <?php foreach ($status as $class => $count): ?>
+                <li><?= $escaper->escapeHtml($class . ': ' . $count) ?></li>
+            <?php endforeach; ?>
+        </ul>
+    </details>
+
+    <p class="aa-note">
+        <?= $escaper->escapeHtml(__('Only requests that reach Magento are counted. Pages served from Varnish, LiteSpeed or a CDN are not, so crawler numbers are a lower bound. Agent endpoints (UCP, MCP, WebMCP) are never cached and are complete.')) ?>
+    </p>
+</div>

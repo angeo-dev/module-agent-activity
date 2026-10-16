@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright (c) 2026 Ievgenii Gryshkun (angeo.dev)
+ * MIT License — see LICENSE for full terms.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <type name="Magento\Framework\Console\CommandList">
+        <arguments>
+            <argument name="commands" xsi:type="array">
+                <item name="angeo_agents_report" xsi:type="object">Angeo\AgentActivity\Console\Command\ReportCommand</item>
+                <item name="angeo_agents_aggregate" xsi:type="object">Angeo\AgentActivity\Console\Command\AggregateCommand</item>
+                <item name="angeo_agents_refresh_ranges" xsi:type="object">Angeo\AgentActivity\Console\Command\RefreshRangesCommand</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <!-- The checkout session is started only when a WebMCP add to cart is recorded. -->
+    <type name="Angeo\AgentActivity\Observer\RecordRequest">
+        <arguments>
+            <argument name="checkoutSession" xsi:type="object">Magento\Checkout\Model\Session\Proxy</argument>
+        </arguments>
+    </type>
+
+    <!-- Admin event log grid (Reports → Marketing → AI Agent Events). -->
+    <virtualType name="Angeo\AgentActivity\Model\ResourceModel\Event\Grid\Collection"
+                 type="Magento\Framework\View\Element\UiComponent\DataProvider\SearchResult">
+        <arguments>
+            <argument name="mainTable" xsi:type="string">angeo_agent_event</argument>
+            <argument name="resourceModel" xsi:type="string">Angeo\AgentActivity\Model\ResourceModel\Event</argument>
+        </arguments>
+    </virtualType>
+    <type name="Magento\Framework\View\Element\UiComponent\DataProvider\CollectionFactory">
+        <arguments>
+            <argument name="collections" xsi:type="array">
+                <item name="angeo_agent_event_listing_data_source" xsi:type="string">Angeo\AgentActivity\Model\ResourceModel\Event\Grid\Collection</item>
+            </argument>
+        </arguments>
+    </type>
+</config>

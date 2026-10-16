@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright (c) 2026 Ievgenii Gryshkun (angeo.dev)
+ * MIT License — see LICENSE for full terms.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Cron:etc/crontab.xsd">
+    <group id="default">
+        <job name="angeo_agent_activity_aggregate" instance="Angeo\AgentActivity\Cron\Aggregate" method="execute">
+            <schedule>7 * * * *</schedule>
+        </job>
+        <job name="angeo_agent_activity_refresh_ranges" instance="Angeo\AgentActivity\Cron\RefreshRanges" method="execute">
+            <schedule>23 4 * * *</schedule>
+        </job>
+        <job name="angeo_agent_activity_cleanup" instance="Angeo\AgentActivity\Cron\Cleanup" method="execute">
+            <schedule>41 3 * * *</schedule>
+        </job>
+    </group>
+</config>

@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">
+    <!-- Fires after the result is rendered, so the status code is final. -->
+    <event name="controller_front_send_response_before">
+        <observer name="angeo_agent_activity_request" instance="Angeo\AgentActivity\Observer\RecordRequest"/>
+    </event>
+</config>

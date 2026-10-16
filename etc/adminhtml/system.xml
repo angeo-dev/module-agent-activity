@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright (c) 2026 Ievgenii Gryshkun (angeo.dev)
+ * MIT License — see LICENSE for full terms.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
+    <system>
+        <tab id="angeo" translate="label" sortOrder="400">
+            <label>Angeo</label>
+        </tab>
+        <section id="angeo_agent_activity" translate="label" type="text" sortOrder="130"
+                 showInDefault="1" showInWebsite="0" showInStore="0">
+            <class>separator-top</class>
+            <label>AI Agent Activity</label>
+            <tab>angeo</tab>
+            <resource>Angeo_AgentActivity::config</resource>
+            <group id="general" translate="label comment" type="text" sortOrder="10" showInDefault="1">
+                <label>General</label>
+                <comment><![CDATA[Report: <em>Reports → Marketing → AI Agent Activity</em>. Event log: <em>Reports → Marketing → AI Agent Events</em>. CLI: <code>bin/magento angeo:agents:report</code>.]]></comment>
+                <field id="enabled" translate="label comment" type="select" sortOrder="10" showInDefault="1">
+                    <label>Log Agent Activity</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment><![CDATA[One row per UCP, MCP and WebMCP call and per agent-built order. No IP address, no request body, no full user agent, no customer data.]]></comment>
+                </field>
+                <field id="log_crawlers" translate="label comment" type="select" sortOrder="20" showInDefault="1">
+                    <label>Log AI Crawler and Agent Page Visits</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment><![CDATA[Storefront pages fetched by known AI crawlers and agents (GPTBot, ChatGPT-User, ClaudeBot, PerplexityBot, Google-Agent and more). Pages served from Varnish or a CDN never reach Magento and are not counted.]]></comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+                <field id="log_search_engines" translate="label comment" type="select" sortOrder="30" showInDefault="1">
+                    <label>Also Log Googlebot and Bingbot</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment><![CDATA[Classic search engines. Off by default: they are not AI agents and would dominate the numbers.]]></comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                        <field id="log_crawlers">1</field>
+                    </depends>
+                </field>
+                <field id="verify_ip" translate="label comment" type="select" sortOrder="40" showInDefault="1">
+                    <label>Check Bots Against Published IP Ranges</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment><![CDATA[Marks requests from OpenAI, Anthropic, Perplexity and Google-Agent as <em>verified</em> or <em>spoofed</em>. The lists are downloaded once a day by cron; storefront requests never call out. The client IP is used for the check only and is not stored.]]></comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+            </group>
+            <group id="retention" translate="label" type="text" sortOrder="20" showInDefault="1">
+                <label>Data Retention</label>
+                <field id="raw_days" translate="label comment" type="text" sortOrder="10" showInDefault="1">
+                    <label>Keep Single Events (days)</label>
+                    <validate>required-entry validate-digits validate-digits-range digits-range-1-365</validate>
+                    <comment>The event log. 1 to 365.</comment>
+                </field>
+                <field id="daily_days" translate="label comment" type="text" sortOrder="20" showInDefault="1">
+                    <label>Keep Daily Totals (days)</label>
+                    <validate>required-entry validate-digits validate-digits-range digits-range-1-3650</validate>
+                    <comment>What the report reads. 1 to 3650.</comment>
+                </field>
+            </group>
+        </section>
+    </system>
+</config>

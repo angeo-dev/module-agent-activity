@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright (c) 2026 Ievgenii Gryshkun (angeo.dev)
+ * MIT License — see LICENSE for full terms.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
+    <default>
+        <angeo_agent_activity>
+            <general>
+                <enabled>1</enabled>
+                <log_crawlers>1</log_crawlers>
+                <log_search_engines>0</log_search_engines>
+                <verify_ip>1</verify_ip>
+            </general>
+            <retention>
+                <raw_days>90</raw_days>
+                <daily_days>730</daily_days>
+            </retention>
+        </angeo_agent_activity>
+    </default>
+</config>

@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright (c) 2026 Ievgenii Gryshkun (angeo.dev)
+ * MIT License — see LICENSE for full terms.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Backend:etc/menu.xsd">
+    <menu>
+        <add id="Angeo_AgentActivity::report" title="AI Agent Activity" translate="title"
+             module="Angeo_AgentActivity" sortOrder="90" parent="Magento_Reports::report_marketing"
+             action="angeo_agents/report/index" resource="Angeo_AgentActivity::report"/>
+        <add id="Angeo_AgentActivity::events" title="AI Agent Events" translate="title"
+             module="Angeo_AgentActivity" sortOrder="91" parent="Magento_Reports::report_marketing"
+             action="angeo_agents/events/index" resource="Angeo_AgentActivity::events"/>
+    </menu>
+</config>

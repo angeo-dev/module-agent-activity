@@ -1,0 +1,29 @@
+includes:
+    - vendor/bitexpert/phpstan-magento/extension.neon
+
+parameters:
+    level: 5
+
+    paths:
+        - .
+
+    excludePaths:
+        analyseAndScan:
+            - vendor
+            - Test
+
+    # Magento core PHPDoc blocks are often inaccurate; do not treat them as facts
+    treatPhpDocTypesAsCertain: false
+
+    # Do not fail when an ignore pattern matches nothing
+    reportUnmatchedIgnoredErrors: false
+
+    ignoreErrors:
+        # Magento service contracts are narrower than the concrete classes the
+        # object manager actually returns. Calling Store, Product, Quote and
+        # Request methods through the interface is standard practice in Magento.
+        - '#Call to an undefined method Magento\\Store\\Api\\Data\\StoreInterface::#'
+        - '#Call to an undefined method Magento\\Catalog\\Api\\Data\\ProductInterface::#'
+        - '#Call to an undefined method Magento\\Catalog\\Api\\Data\\CategoryInterface::#'
+        - '#Call to an undefined method Magento\\Framework\\App\\RequestInterface::#'
+        - '#Parameter \#\d+ \$\w+ of method .+ expects Magento\\Catalog\\Model\\(Product|Category), Magento\\Catalog\\Api\\Data\\(ProductInterface|CategoryInterface) given\.#'

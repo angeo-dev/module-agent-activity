@@ -1,0 +1,92 @@
+{
+    "angeo_agent_event": {
+        "column": {
+            "event_id": true,
+            "created_at": true,
+            "store_id": true,
+            "channel": true,
+            "category": true,
+            "agent": true,
+            "operator": true,
+            "operation": true,
+            "status": true,
+            "verified": true,
+            "signed": true,
+            "duration_ms": true,
+            "path": true,
+            "ref": true,
+            "order_id": true,
+            "value": true,
+            "currency": true
+        },
+        "index": {
+            "ANGEO_AGENT_EVENT_CREATED_AT": true,
+            "ANGEO_AGENT_EVENT_CHANNEL_CREATED_AT": true,
+            "ANGEO_AGENT_EVENT_AGENT_CREATED_AT": true,
+            "ANGEO_AGENT_EVENT_OPERATION_CREATED_AT": true
+        },
+        "constraint": {
+            "PRIMARY": true
+        }
+    },
+    "angeo_agent_event_daily": {
+        "column": {
+            "row_id": true,
+            "day": true,
+            "store_id": true,
+            "channel": true,
+            "category": true,
+            "agent": true,
+            "operator": true,
+            "operation": true,
+            "verified_state": true,
+            "calls": true,
+            "status_2xx": true,
+            "status_3xx": true,
+            "status_4xx": true,
+            "status_5xx": true,
+            "signed": true,
+            "duration_sum": true,
+            "duration_count": true,
+            "orders": true,
+            "revenue": true,
+            "currency": true
+        },
+        "index": {
+            "ANGEO_AGENT_EVENT_DAILY_DAY_STORE": true
+        },
+        "constraint": {
+            "PRIMARY": true,
+            "ANGEO_AGENT_EVENT_DAILY_KEY": true
+        }
+    },
+    "angeo_agent_path_daily": {
+        "column": {
+            "row_id": true,
+            "day": true,
+            "store_id": true,
+            "category": true,
+            "path": true,
+            "calls": true,
+            "agents": true
+        },
+        "constraint": {
+            "PRIMARY": true,
+            "ANGEO_AGENT_PATH_DAILY_KEY": true
+        }
+    },
+    "angeo_agent_quote": {
+        "column": {
+            "quote_id": true,
+            "channel": true,
+            "agent": true,
+            "created_at": true
+        },
+        "index": {
+            "ANGEO_AGENT_QUOTE_CREATED_AT": true
+        },
+        "constraint": {
+            "PRIMARY": true
+        }
+    }
+}

@@ -1,0 +1,134 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright (c) 2026 Ievgenii Gryshkun (angeo.dev)
+ * MIT License — see LICENSE for full terms.
+ */
+-->
+<schema xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Setup/Declaration/Schema/etc/schema.xsd">
+    <!--
+        One row per agent request or agent-built order. No IP address, no
+        full user agent, no request body, no customer data.
+    -->
+    <table name="angeo_agent_event" resource="default" engine="innodb" comment="Angeo AI agent activity: events">
+        <column xsi:type="bigint" name="event_id" unsigned="true" nullable="false" identity="true" comment="Event ID"/>
+        <column xsi:type="timestamp" name="created_at" on_update="false" nullable="false"
+                default="CURRENT_TIMESTAMP" comment="Created At (UTC)"/>
+        <column xsi:type="smallint" name="store_id" unsigned="true" nullable="false" default="0" comment="Store ID"/>
+        <column xsi:type="varchar" name="channel" nullable="false" length="16" comment="ucp, mcp, webmcp, crawler"/>
+        <column xsi:type="varchar" name="category" nullable="false" length="16" default="platform"
+                comment="training, search, user_fetch, agent, search_engine, platform"/>
+        <column xsi:type="varchar" name="agent" nullable="false" length="64" comment="Agent name"/>
+        <column xsi:type="varchar" name="operator" nullable="false" length="64" default="" comment="Company or platform host"/>
+        <column xsi:type="varchar" name="operation" nullable="false" length="64" comment="Operation"/>
+        <column xsi:type="smallint" name="status" unsigned="true" nullable="false" default="0" comment="HTTP status"/>
+        <column xsi:type="smallint" name="verified" unsigned="true" nullable="true"
+                comment="1 IP in vendor list, 0 outside (spoofed), NULL not checked"/>
+        <column xsi:type="smallint" name="signed" unsigned="true" nullable="false" default="0"
+                comment="Web Bot Auth signature present"/>
+        <column xsi:type="int" name="duration_ms" unsigned="true" nullable="true" comment="Duration (ms)"/>
+        <column xsi:type="varchar" name="path" nullable="true" length="255" comment="URL path (crawler pages)"/>
+        <column xsi:type="varchar" name="ref" nullable="true" length="64" comment="Checkout id or order number"/>
+        <column xsi:type="int" name="order_id" unsigned="true" nullable="true" comment="Sales order entity ID"/>
+        <column xsi:type="decimal" name="value" scale="4" precision="20" nullable="true" comment="Order base grand total"/>
+        <column xsi:type="varchar" name="currency" nullable="true" length="3" comment="Base currency"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="event_id"/>
+        </constraint>
+        <index referenceId="ANGEO_AGENT_EVENT_CREATED_AT" indexType="btree">
+            <column name="created_at"/>
+        </index>
+        <index referenceId="ANGEO_AGENT_EVENT_CHANNEL_CREATED_AT" indexType="btree">
+            <column name="channel"/>
+            <column name="created_at"/>
+        </index>
+        <index referenceId="ANGEO_AGENT_EVENT_AGENT_CREATED_AT" indexType="btree">
+            <column name="agent"/>
+            <column name="created_at"/>
+        </index>
+        <index referenceId="ANGEO_AGENT_EVENT_OPERATION_CREATED_AT" indexType="btree">
+            <column name="operation"/>
+            <column name="created_at"/>
+        </index>
+    </table>
+
+    <!--
+        Daily totals for the report. Rebuilt from angeo_agent_event by
+        Model\Aggregator (cron every hour, "Refresh" button, CLI), so the
+        report stays fast on busy stores and outlives the event log.
+        verified_state: 1 verified, 0 spoofed, 2 not checked.
+    -->
+    <table name="angeo_agent_event_daily" resource="default" engine="innodb" comment="Angeo AI agent activity: daily totals">
+        <column xsi:type="int" name="row_id" unsigned="true" nullable="false" identity="true" comment="Row ID"/>
+        <column xsi:type="date" name="day" nullable="false" comment="Day (UTC)"/>
+        <column xsi:type="smallint" name="store_id" unsigned="true" nullable="false" default="0" comment="Store ID"/>
+        <column xsi:type="varchar" name="channel" nullable="false" length="16" comment="Channel"/>
+        <column xsi:type="varchar" name="category" nullable="false" length="16" default="platform" comment="Category"/>
+        <column xsi:type="varchar" name="agent" nullable="false" length="64" comment="Agent"/>
+        <column xsi:type="varchar" name="operator" nullable="false" length="64" default="" comment="Operator"/>
+        <column xsi:type="varchar" name="operation" nullable="false" length="64" comment="Operation"/>
+        <column xsi:type="smallint" name="verified_state" unsigned="true" nullable="false" default="2" comment="Verified state"/>
+        <column xsi:type="int" name="calls" unsigned="true" nullable="false" default="0" comment="Calls"/>
+        <column xsi:type="int" name="status_2xx" unsigned="true" nullable="false" default="0" comment="2xx responses"/>
+        <column xsi:type="int" name="status_3xx" unsigned="true" nullable="false" default="0" comment="3xx responses"/>
+        <column xsi:type="int" name="status_4xx" unsigned="true" nullable="false" default="0" comment="4xx responses"/>
+        <column xsi:type="int" name="status_5xx" unsigned="true" nullable="false" default="0" comment="5xx responses"/>
+        <column xsi:type="int" name="signed" unsigned="true" nullable="false" default="0" comment="Signed requests"/>
+        <column xsi:type="bigint" name="duration_sum" unsigned="true" nullable="false" default="0" comment="Sum of durations (ms)"/>
+        <column xsi:type="int" name="duration_count" unsigned="true" nullable="false" default="0" comment="Timed calls"/>
+        <column xsi:type="int" name="orders" unsigned="true" nullable="false" default="0" comment="Agent-built orders"/>
+        <column xsi:type="decimal" name="revenue" scale="4" precision="20" nullable="false" default="0" comment="Order base grand total"/>
+        <column xsi:type="varchar" name="currency" nullable="true" length="3" comment="Base currency"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="row_id"/>
+        </constraint>
+        <constraint xsi:type="unique" referenceId="ANGEO_AGENT_EVENT_DAILY_KEY">
+            <column name="day"/>
+            <column name="store_id"/>
+            <column name="channel"/>
+            <column name="agent"/>
+            <column name="operation"/>
+            <column name="verified_state"/>
+        </constraint>
+        <index referenceId="ANGEO_AGENT_EVENT_DAILY_DAY_STORE" indexType="btree">
+            <column name="day"/>
+            <column name="store_id"/>
+        </index>
+    </table>
+
+    <!-- Daily page fetches per path, for "most fetched pages". -->
+    <table name="angeo_agent_path_daily" resource="default" engine="innodb" comment="Angeo AI agent activity: daily pages">
+        <column xsi:type="int" name="row_id" unsigned="true" nullable="false" identity="true" comment="Row ID"/>
+        <column xsi:type="date" name="day" nullable="false" comment="Day (UTC)"/>
+        <column xsi:type="smallint" name="store_id" unsigned="true" nullable="false" default="0" comment="Store ID"/>
+        <column xsi:type="varchar" name="category" nullable="false" length="16" comment="Category"/>
+        <column xsi:type="varchar" name="path" nullable="false" length="255" comment="URL path"/>
+        <column xsi:type="int" name="calls" unsigned="true" nullable="false" default="0" comment="Fetches"/>
+        <column xsi:type="int" name="agents" unsigned="true" nullable="false" default="0" comment="Distinct agents"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="row_id"/>
+        </constraint>
+        <constraint xsi:type="unique" referenceId="ANGEO_AGENT_PATH_DAILY_KEY">
+            <column name="day"/>
+            <column name="store_id"/>
+            <column name="category"/>
+            <column name="path"/>
+        </constraint>
+    </table>
+
+    <!-- Carts built by a browser agent (WebMCP add_to_cart), for order attribution. -->
+    <table name="angeo_agent_quote" resource="default" engine="innodb" comment="Angeo AI agent activity: agent carts">
+        <column xsi:type="int" name="quote_id" unsigned="true" nullable="false" comment="Quote ID"/>
+        <column xsi:type="varchar" name="channel" nullable="false" length="16" comment="Channel"/>
+        <column xsi:type="varchar" name="agent" nullable="false" length="64" comment="Agent"/>
+        <column xsi:type="timestamp" name="created_at" on_update="false" nullable="false"
+                default="CURRENT_TIMESTAMP" comment="Created At (UTC)"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="quote_id"/>
+        </constraint>
+        <index referenceId="ANGEO_AGENT_QUOTE_CREATED_AT" indexType="btree">
+            <column name="created_at"/>
+        </index>
+    </table>
+</schema>
