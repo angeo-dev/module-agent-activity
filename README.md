@@ -36,9 +36,12 @@ Every agent has a **type**, so you can tell why it came:
 ## Is that bot real?
 
 Anyone can send `User-Agent: GPTBot`. When the setting is on, the module
-checks requests from OpenAI, Anthropic, Perplexity and Google-Agent against
-the IP ranges these vendors publish and marks them **verified** or
-**spoofed**. The lists are downloaded once a day by cron; the client IP is
+checks requests from OpenAI, Anthropic, Perplexity, Google (Googlebot,
+GoogleOther, Google-Agent, NotebookLM) and Bingbot against the IP ranges
+these vendors publish and marks them **verified** or **spoofed**. When
+Magento sees a private address (a proxy or load balancer without trusted
+forwarding headers), the call is marked **behind proxy** instead, and the
+report tells you to fix the forwarding. The lists are downloaded once a day by cron; the client IP is
 used for the check and never stored.
 
 Requests signed with **Web Bot Auth** (`Signature-Agent` +
@@ -54,12 +57,34 @@ signer. The signature itself is not verified here; do that at your CDN.
 - Summary: agent calls, distinct agents, agent-built orders and revenue,
   error rate, spoofed bot calls — each with the change versus the previous
   period
+- **Findings**: plain-language checks with a level (critical, warning,
+  note, good), for example
+  - fake bots (user agent outside the vendor IP ranges)
+  - IP check blocked by a proxy, or IP lists not downloaded
+  - MCP clients that discover the server but never call a tool, carts that
+    never reach checkout, checkouts that never become orders
+  - JSON-RPC errors that a web server log shows as HTTP 200
+  - AI crawlers that read robots.txt but no pages
+  - nobody reads llms.txt
+  - crawlers wasting visits on account, cart, checkout and search pages
+  - URLs without a URL rewrite (`/catalog/category/view/id/21`)
+  - many URLs with filters or tracking parameters
+  - slow pages for crawlers, with the page cache hit rate
+  - error pages served to agents
+- Summary: agent calls, distinct agents, agent-built orders and revenue,
+  error rate, MCP tool calls, page cache hit rate for crawlers, spoofed bot
+  calls — with the change versus the previous period
 - Charts: calls per day by channel, calls by agent type, top 10 agents,
-  responses by status, UCP checkout funnel
-- Tables: agents (company, type, errors, IP check, last seen), agent-built
-  orders with links to the orders, operations (errors, average time), most
-  fetched pages split by agent type
-- **Export CSV** of the whole report, **Refresh now** to rebuild the totals
+  responses by status, **MCP funnel** (discovery → lists → tool calls →
+  cart tools → checkout tools → orders), UCP checkout funnel
+- Tables: agents (company, type, errors, IP check, average time, last seen),
+  **MCP clients** (named from `clientInfo`, also in stateless MCP
+  2026-07-28) with client and protocol versions, **tool calls** by tool,
+  **what agents read** (page type × agent type, with speed, cache hits,
+  query strings and errors), agent-built orders, operations, most fetched
+  pages (login URLs show the page they came from)
+- **Export**: the whole report as CSV, each section as its own CSV table, or
+  everything with the findings as JSON. **Refresh now** rebuilds the totals
 
 Charts use the Chart.js that ships with Magento (3.9 in 2.4.6, 4.x in
 2.4.7+): no CDN, no inline JavaScript. Every chart has a table with the same
@@ -73,6 +98,7 @@ grid with filters, column controls and CSV/XML export.
 ```bash
 bin/magento angeo:agents:report --days=30            # or --from=2026-10-01 --to=2026-10-15
 bin/magento angeo:agents:report --store=1 --format=json
+bin/magento angeo:agents:report --fail-on=warning    # exit 1 on a warning: for CI or monitoring
 bin/magento angeo:agents:aggregate --days=2          # rebuild the totals now
 bin/magento angeo:agents:refresh-ranges              # download the bot IP lists now
 ```

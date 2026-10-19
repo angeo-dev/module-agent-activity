@@ -19,6 +19,21 @@ $funnel = $block->getFunnel();
 $ordersByChannel = $block->getOrdersByChannel();
 $recentOrders = $block->getRecentOrders();
 $status = $block->getStatusMix();
+$findings = $block->getFindings();
+$mcpFunnel = $block->getMcpFunnel();
+$mcpClients = $block->getMcpClients();
+$mcpVersions = $block->getMcpVersions();
+$tools = $block->getTools();
+$mix = $block->getContentMix();
+$mixCategories = $block->getMixCategories();
+$firstDay = $block->getFirstDay();
+$cacheKnown = $totals['cache_hits'] + $totals['cache_misses'];
+$levelLabels = [
+    'critical' => __('Critical'),
+    'warning'  => __('Warning'),
+    'info'     => __('Note'),
+    'good'     => __('Good'),
+];
 $errorRate = $totals['calls'] > 0 ? round($totals['errors'] / $totals['calls'] * 100, 1) : 0.0;
 $checked = $totals['verified'] + $totals['spoofed'];
 $hasData = $totals['calls'] > 0 || $totals['orders'] > 0;
@@ -70,9 +85,16 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
             <a class="action-secondary" href="<?= $escaper->escapeUrl($block->getEventsUrl()) ?>">
                 <?= $escaper->escapeHtml(__('Event log')) ?>
             </a>
-            <a class="action-secondary" href="<?= $escaper->escapeUrl($block->getExportUrl()) ?>">
-                <?= $escaper->escapeHtml(__('Export CSV')) ?>
-            </a>
+            <details class="aa-export">
+                <summary class="action-secondary"><?= $escaper->escapeHtml(__('Export')) ?></summary>
+                <ul class="aa-export__menu">
+                    <li><a href="<?= $escaper->escapeUrl($block->getExportUrl()) ?>"><?= $escaper->escapeHtml(__('Whole report (CSV)')) ?></a></li>
+                    <li><a href="<?= $escaper->escapeUrl($block->getExportUrl('', 'json')) ?>"><?= $escaper->escapeHtml(__('Whole report with findings (JSON)')) ?></a></li>
+                    <?php foreach ($block->getExportSections() as $code => $label): ?>
+                        <li><a href="<?= $escaper->escapeUrl($block->getExportUrl($code)) ?>"><?= $escaper->escapeHtml(__('%1 (CSV)', $label)) ?></a></li>
+                    <?php endforeach; ?>
+                </ul>
+            </details>
         </div>
     </form>
 
@@ -83,6 +105,9 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
             $filter->to,
             $block->getLastRunLabel()
         )) ?>
+        <?php if ($firstDay !== null): ?>
+            <span><?= $escaper->escapeHtml(__('Tracking since %1.', $firstDay)) ?></span>
+        <?php endif; ?>
         <?php if ($block->canRefresh()): ?>
             <form class="aa-inline" method="post" action="<?= $escaper->escapeUrl($block->getRefreshUrl()) ?>">
                 <?= $block->getBlockHtml('formkey') ?>
@@ -118,12 +143,26 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
             <span class="aa-delta aa-delta--none"><?= $escaper->escapeHtml(__('%1 calls with 4xx or 5xx', $block->compact($totals['errors']))) ?></span>
         </div>
         <div class="aa-tile">
+            <div class="aa-tile__label"><?= $escaper->escapeHtml(__('MCP tool calls')) ?></div>
+            <div class="aa-tile__value"><?= $escaper->escapeHtml($block->compact($mcpFunnel['tool_calls'])) ?></div>
+            <span class="aa-delta aa-delta--none"><?= $escaper->escapeHtml(__('after %1 discovery and list calls', $block->compact($mcpFunnel['discover'] + $mcpFunnel['list']))) ?></span>
+        </div>
+        <div class="aa-tile">
+            <div class="aa-tile__label"><?= $escaper->escapeHtml(__('Page cache for crawlers')) ?></div>
+            <div class="aa-tile__value"><?= $escaper->escapeHtml($cacheKnown > 0 ? round($totals['cache_hits'] / $cacheKnown * 100) . '%' : '—') ?></div>
+            <span class="aa-delta aa-delta--none"><?= $escaper->escapeHtml($cacheKnown > 0
+                ? __('hit rate, %1 pages checked', $block->compact($cacheKnown))
+                : __('unknown: Varnish, or the cache is off')) ?></span>
+        </div>
+        <div class="aa-tile">
             <div class="aa-tile__label"><?= $escaper->escapeHtml(__('Spoofed bot calls')) ?></div>
             <div class="aa-tile__value"><?= $escaper->escapeHtml($block->compact($totals['spoofed'])) ?></div>
             <span class="aa-delta aa-delta--none">
-                <?= $escaper->escapeHtml($checked > 0
-                    ? __('of %1 checked against vendor IP ranges', $block->compact($checked))
-                    : __('IP check has no data yet')) ?>
+                <?= $escaper->escapeHtml(match (true) {
+                    $checked > 0 => __('of %1 checked against vendor IP ranges', $block->compact($checked)),
+                    $totals['behind_proxy'] > 0 => __('not checked: %1 calls came through a proxy', $block->compact($totals['behind_proxy'])),
+                    default => __('IP check has no data yet'),
+                }) ?>
             </span>
         </div>
     </section>
@@ -134,6 +173,24 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
                 <?= $escaper->escapeHtml(__('No agent activity in this period yet. Logging starts after install; the totals are built every hour by cron. Use "Refresh now" to build them at once.')) ?>
             </div>
         </div>
+    <?php endif; ?>
+
+    <?php if ($findings !== []): ?>
+        <section class="aa-findings" aria-label="<?= $escaper->escapeHtmlAttr(__('Findings')) ?>">
+            <h2 class="aa-h2"><?= $escaper->escapeHtml(__('Findings')) ?></h2>
+            <ul class="aa-findings__list">
+                <?php foreach ($findings as $finding): ?>
+                    <?php $text = $block->findingText($finding); ?>
+                    <li class="aa-finding aa-finding--<?= $escaper->escapeHtmlAttr($finding['level']) ?>">
+                        <span class="aa-finding__level"><?= $escaper->escapeHtml($levelLabels[$finding['level']] ?? $finding['level']) ?></span>
+                        <div>
+                            <div class="aa-finding__title"><?= $escaper->escapeHtml($text['title']) ?></div>
+                            <div class="aa-finding__detail"><?= $escaper->escapeHtml($text['detail']) ?></div>
+                        </div>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        </section>
     <?php endif; ?>
 
     <div class="aa-charts" data-mage-init='<?= $escaper->escapeHtmlAttr('{"Angeo_AgentActivity/js/report-charts": ' . $block->getChartJson() . '}') ?>'>
@@ -158,6 +215,11 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
             <div class="aa-card__plot"><canvas data-chart="status" role="img"
                 aria-label="<?= $escaper->escapeHtmlAttr(__('Bar chart of responses by HTTP status class.')) ?>"></canvas></div>
         </figure>
+        <figure class="aa-card">
+            <figcaption class="aa-card__title"><?= $escaper->escapeHtml(__('MCP funnel')) ?></figcaption>
+            <div class="aa-card__plot"><canvas data-chart="mcpFunnel" role="img"
+                aria-label="<?= $escaper->escapeHtmlAttr(__('Funnel: MCP discovery, lists, tool calls, cart tools, checkout tools, orders.')) ?>"></canvas></div>
+        </figure>
         <?php if ($funnel !== null): ?>
             <figure class="aa-card">
                 <figcaption class="aa-card__title"><?= $escaper->escapeHtml(__('UCP checkout funnel')) ?></figcaption>
@@ -181,6 +243,7 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
                     <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Errors')) ?></th>
                     <th class="data-grid-th"><?= $escaper->escapeHtml(__('IP check')) ?></th>
                     <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Signed')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Avg ms')) ?></th>
                     <th class="data-grid-th"><?= $escaper->escapeHtml(__('Last seen (UTC)')) ?></th>
                 </tr></thead>
                 <tbody>
@@ -198,6 +261,8 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
                                 <span class="aa-muted"><?= $escaper->escapeHtml(__('of %1 checked', $rowChecked)) ?></span>
                             <?php elseif ($row['verified'] > 0): ?>
                                 <span class="aa-status aa-status--good">&#10003; <?= $escaper->escapeHtml(__('Verified')) ?></span>
+                            <?php elseif ($row['behind_proxy'] > 0): ?>
+                                <span class="aa-muted" title="<?= $escaper->escapeHtmlAttr(__('Magento sees a private address. Pass the real client IP from the proxy.')) ?>"><?= $escaper->escapeHtml(__('Behind proxy')) ?></span>
                             <?php elseif ($row['category'] === 'platform'): ?>
                                 <span class="aa-muted" title="<?= $escaper->escapeHtmlAttr(__('Agent platforms are named by their UCP profile, not by IP.')) ?>">&mdash;</span>
                             <?php else: ?>
@@ -205,7 +270,138 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
                             <?php endif; ?>
                         </td>
                         <td class="aa-num"><?= (int) $row['signed'] ?></td>
+                        <td class="aa-num"><?= (int) $row['avg_ms'] ?></td>
                         <td><?= $escaper->escapeHtml($row['last_day']) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
+
+    <h2 class="aa-h2"><?= $escaper->escapeHtml(__('MCP clients')) ?></h2>
+    <?php if ($mcpClients === []): ?>
+        <p class="aa-empty"><?= $escaper->escapeHtml(__('No MCP calls in this period.')) ?></p>
+    <?php else: ?>
+        <div class="admin__data-grid-wrap">
+            <table class="data-grid aa-table">
+                <thead><tr>
+                    <th class="data-grid-th"><?= $escaper->escapeHtml(__('Client')) ?></th>
+                    <th class="data-grid-th"><?= $escaper->escapeHtml(__('Operator')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Calls')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Discovery')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Lists')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Tool calls')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Errors')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Avg ms')) ?></th>
+                    <th class="data-grid-th"><?= $escaper->escapeHtml(__('Last seen (UTC)')) ?></th>
+                </tr></thead>
+                <tbody>
+                <?php foreach ($mcpClients as $row): ?>
+                    <tr>
+                        <td><?= $escaper->escapeHtml($row['agent']) ?></td>
+                        <td><?= $escaper->escapeHtml($row['operator']) ?></td>
+                        <td class="aa-num"><?= (int) $row['calls'] ?></td>
+                        <td class="aa-num"><?= (int) $row['discover'] ?></td>
+                        <td class="aa-num"><?= (int) $row['list'] ?></td>
+                        <td class="aa-num<?= $row['tool_calls'] === 0 ? ' aa-bad' : '' ?>"><?= (int) $row['tool_calls'] ?></td>
+                        <td class="aa-num<?= $row['errors'] > 0 ? ' aa-bad' : '' ?>"><?= (int) $row['errors'] ?></td>
+                        <td class="aa-num"><?= (int) $row['avg_ms'] ?></td>
+                        <td><?= $escaper->escapeHtml($row['last_day']) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php if ($mcpVersions !== []): ?>
+            <details class="aa-details">
+                <summary><?= $escaper->escapeHtml(__('Client and protocol versions')) ?></summary>
+                <div class="admin__data-grid-wrap">
+                    <table class="data-grid aa-table">
+                        <thead><tr>
+                            <th class="data-grid-th"><?= $escaper->escapeHtml(__('Client')) ?></th>
+                            <th class="data-grid-th"><?= $escaper->escapeHtml(__('clientInfo name')) ?></th>
+                            <th class="data-grid-th"><?= $escaper->escapeHtml(__('Version')) ?></th>
+                            <th class="data-grid-th"><?= $escaper->escapeHtml(__('MCP protocol')) ?></th>
+                            <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Calls')) ?></th>
+                        </tr></thead>
+                        <tbody>
+                        <?php foreach ($mcpVersions as $row): ?>
+                            <tr>
+                                <td><?= $escaper->escapeHtml($row['agent']) ?></td>
+                                <td><?= $escaper->escapeHtml($row['client'] !== '' ? $row['client'] : '—') ?></td>
+                                <td><?= $escaper->escapeHtml($row['client_version'] !== '' ? $row['client_version'] : '—') ?></td>
+                                <td><?= $escaper->escapeHtml($row['protocol'] !== '' ? $row['protocol'] : '—') ?></td>
+                                <td class="aa-num"><?= (int) $row['calls'] ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+        <?php endif; ?>
+    <?php endif; ?>
+
+    <h2 class="aa-h2"><?= $escaper->escapeHtml(__('Tool calls')) ?></h2>
+    <?php if ($tools === []): ?>
+        <p class="aa-empty"><?= $escaper->escapeHtml(__('No agent called a tool in this period.')) ?></p>
+    <?php else: ?>
+        <div class="admin__data-grid-wrap">
+            <table class="data-grid aa-table">
+                <thead><tr>
+                    <th class="data-grid-th"><?= $escaper->escapeHtml(__('Channel')) ?></th>
+                    <th class="data-grid-th"><?= $escaper->escapeHtml(__('Tool')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Calls')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Errors')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Clients')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Avg ms')) ?></th>
+                </tr></thead>
+                <tbody>
+                <?php foreach ($tools as $row): ?>
+                    <tr>
+                        <td><?= $escaper->escapeHtml($block->channelLabel($row['channel'])) ?></td>
+                        <td><code><?= $escaper->escapeHtml($row['tool']) ?></code></td>
+                        <td class="aa-num"><?= (int) $row['calls'] ?></td>
+                        <td class="aa-num<?= $row['errors'] > 0 ? ' aa-bad' : '' ?>"><?= (int) $row['errors'] ?></td>
+                        <td class="aa-num"><?= (int) $row['clients'] ?></td>
+                        <td class="aa-num"><?= (int) $row['avg_ms'] ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
+
+    <h2 class="aa-h2"><?= $escaper->escapeHtml(__('What agents read')) ?></h2>
+    <?php if ($mix === []): ?>
+        <p class="aa-empty"><?= $escaper->escapeHtml(__('No page fetches by AI crawlers or agents in this period.')) ?></p>
+    <?php else: ?>
+        <div class="admin__data-grid-wrap">
+            <table class="data-grid aa-table">
+                <thead><tr>
+                    <th class="data-grid-th"><?= $escaper->escapeHtml(__('Page type')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Fetches')) ?></th>
+                    <?php foreach ($mixCategories as $label): ?>
+                        <th class="data-grid-th aa-num"><?= $escaper->escapeHtml($label) ?></th>
+                    <?php endforeach; ?>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Avg ms')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Cache hit')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('With query')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Errors')) ?></th>
+                </tr></thead>
+                <tbody>
+                <?php foreach ($mix as $row): ?>
+                    <?php $known = $row['cache_hits'] + $row['cache_misses']; ?>
+                    <tr>
+                        <td><code><?= $escaper->escapeHtml($row['page_type']) ?></code></td>
+                        <td class="aa-num"><?= (int) $row['calls'] ?></td>
+                        <?php foreach (array_keys($mixCategories) as $code): ?>
+                            <td class="aa-num"><?= (int) ($row['by_category'][$code] ?? 0) ?></td>
+                        <?php endforeach; ?>
+                        <td class="aa-num"><?= (int) $row['avg_ms'] ?></td>
+                        <td class="aa-num"><?= $escaper->escapeHtml($known > 0 ? round($row['cache_hits'] / $known * 100) . '%' : '—') ?></td>
+                        <td class="aa-num"><?= (int) $row['query_calls'] ?></td>
+                        <td class="aa-num<?= $row['errors'] > 0 ? ' aa-bad' : '' ?>"><?= (int) $row['errors'] ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -308,16 +504,25 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
                     <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('AI search')) ?></th>
                     <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('User-triggered')) ?></th>
                     <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Agents')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Search engines')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Other')) ?></th>
                 </tr></thead>
                 <tbody>
                 <?php foreach ($paths as $row): ?>
                     <tr>
-                        <td class="aa-path"><?= $escaper->escapeHtml($row['path']) ?></td>
+                        <td class="aa-path" title="<?= $escaper->escapeHtmlAttr($row['path']) ?>">
+                            <?= $escaper->escapeHtml($block->prettyPath($row['path'])) ?>
+                            <?php if ($block->isRawUrl($row['path'])): ?>
+                                <span class="aa-tag" title="<?= $escaper->escapeHtmlAttr(__('System URL without a URL rewrite')) ?>"><?= $escaper->escapeHtml(__('no rewrite')) ?></span>
+                            <?php endif; ?>
+                        </td>
                         <td class="aa-num"><?= (int) $row['calls'] ?></td>
                         <td class="aa-num"><?= (int) $row['training'] ?></td>
                         <td class="aa-num"><?= (int) $row['search'] ?></td>
                         <td class="aa-num"><?= (int) $row['user_fetch'] ?></td>
                         <td class="aa-num"><?= (int) $row['agent'] ?></td>
+                        <td class="aa-num"><?= (int) $row['search_engine'] ?></td>
+                        <td class="aa-num"><?= (int) $row['other'] ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>

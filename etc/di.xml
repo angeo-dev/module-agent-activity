@@ -17,6 +17,15 @@
         </arguments>
     </type>
 
+    <!-- CLI commands are built on every bin/magento run: keep their dependencies lazy. -->
+    <type name="Angeo\AgentActivity\Console\Command\ReportCommand">
+        <arguments>
+            <argument name="report" xsi:type="object">Angeo\AgentActivity\Model\Report\Proxy</argument>
+            <argument name="insights" xsi:type="object">Angeo\AgentActivity\Model\Insights\Proxy</argument>
+            <argument name="export" xsi:type="object">Angeo\AgentActivity\Model\Report\CsvExport\Proxy</argument>
+        </arguments>
+    </type>
+
     <!-- The checkout session is started only when a WebMCP add to cart is recorded. -->
     <type name="Angeo\AgentActivity\Observer\RecordRequest">
         <arguments>

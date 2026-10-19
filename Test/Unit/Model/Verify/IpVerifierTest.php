@@ -43,8 +43,16 @@ class IpVerifierTest extends TestCase
     {
         self::assertNull($this->verifier(null)->verify($this->gptbot(), '20.171.206.17'), 'list never downloaded');
         self::assertNull($this->verifier(['20.171.206.0/24'])->verify($this->gptbot(), ''));
-        self::assertNull($this->verifier(['20.171.206.0/24'])->verify($this->gptbot(), '10.0.0.5'), 'proxy address');
-        self::assertNull($this->verifier(['20.171.206.0/24'])->verify($this->gptbot(), '127.0.0.1'), 'loopback');
+        self::assertSame(
+            IpVerifier::STATE_BEHIND_PROXY,
+            $this->verifier(['20.171.206.0/24'])->verify($this->gptbot(), '10.0.0.5'),
+            'proxy address'
+        );
+        self::assertSame(
+            IpVerifier::STATE_BEHIND_PROXY,
+            $this->verifier(['20.171.206.0/24'])->verify($this->gptbot(), '127.0.0.1'),
+            'loopback'
+        );
         $noList = new Identity('bytedance', 'ByteDance', 'training', Identity::SOURCE_USER_AGENT);
         self::assertNull($this->verifier(['20.171.206.0/24'])->verify($noList, '20.171.206.17'));
     }

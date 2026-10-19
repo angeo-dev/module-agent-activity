@@ -17,13 +17,16 @@ use Angeo\AgentActivity\Model\Agent\Identity;
  * this check and then dropped; it is never written anywhere.
  *
  * Result: STATE_VERIFIED (inside the vendor list), STATE_FAILED (outside:
- * the user agent is probably spoofed) or null (no list for this agent, the
- * list was never downloaded, or the address is private, i.e. a proxy).
+ * the user agent is probably spoofed), STATE_BEHIND_PROXY (the agent has a
+ * list, but Magento sees a private address, i.e. a proxy or load balancer
+ * without trusted forwarding headers) or null (no list for this agent, or
+ * the list was never downloaded).
  */
 class IpVerifier
 {
     public const STATE_FAILED = 0;
     public const STATE_VERIFIED = 1;
+    public const STATE_BEHIND_PROXY = 3;
 
     public function __construct(
         private readonly RangeStore $store,
@@ -33,8 +36,11 @@ class IpVerifier
 
     public function verify(Identity $identity, string $ip): ?int
     {
-        if ($identity->ranges === null || !$this->isPublic($ip)) {
+        if ($identity->ranges === null || $ip === '') {
             return null;
+        }
+        if (!$this->isPublic($ip)) {
+            return self::STATE_BEHIND_PROXY;
         }
         $prefixes = $this->store->prefixes($identity->ranges);
         if ($prefixes === null || $prefixes === []) {

@@ -15,7 +15,7 @@ use Magento\Framework\App\Config\ScopeConfigInterface;
  */
 class Config
 {
-    public const MODULE_VERSION = '1.0.0';
+    public const MODULE_VERSION = '1.1.0';
 
     private const PATH_ENABLED = 'angeo_agent_activity/general/enabled';
     private const PATH_LOG_CRAWLERS = 'angeo_agent_activity/general/log_crawlers';

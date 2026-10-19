@@ -24,7 +24,7 @@
         <column xsi:type="varchar" name="operation" nullable="false" length="64" comment="Operation"/>
         <column xsi:type="smallint" name="status" unsigned="true" nullable="false" default="0" comment="HTTP status"/>
         <column xsi:type="smallint" name="verified" unsigned="true" nullable="true"
-                comment="1 IP in vendor list, 0 outside (spoofed), NULL not checked"/>
+                comment="1 IP in vendor list, 0 outside (spoofed), 3 behind proxy, NULL not checked"/>
         <column xsi:type="smallint" name="signed" unsigned="true" nullable="false" default="0"
                 comment="Web Bot Auth signature present"/>
         <column xsi:type="int" name="duration_ms" unsigned="true" nullable="true" comment="Duration (ms)"/>
@@ -33,6 +33,15 @@
         <column xsi:type="int" name="order_id" unsigned="true" nullable="true" comment="Sales order entity ID"/>
         <column xsi:type="decimal" name="value" scale="4" precision="20" nullable="true" comment="Order base grand total"/>
         <column xsi:type="varchar" name="currency" nullable="true" length="3" comment="Base currency"/>
+        <column xsi:type="varchar" name="client" nullable="true" length="64" comment="MCP clientInfo name"/>
+        <column xsi:type="varchar" name="client_version" nullable="true" length="32" comment="MCP clientInfo version"/>
+        <column xsi:type="varchar" name="protocol" nullable="true" length="16" comment="MCP protocol version"/>
+        <column xsi:type="smallint" name="rpc_error" unsigned="true" nullable="false" default="0"
+                comment="JSON-RPC error or tool isError in a 2xx response"/>
+        <column xsi:type="smallint" name="cache" unsigned="true" nullable="true"
+                comment="Full page cache: 1 hit, 0 miss, NULL unknown"/>
+        <column xsi:type="smallint" name="has_query" unsigned="true" nullable="false" default="0"
+                comment="URL had a query string (filters, sorting, tracking)"/>
         <constraint xsi:type="primary" referenceId="PRIMARY">
             <column name="event_id"/>
         </constraint>
@@ -57,7 +66,7 @@
         Daily totals for the report. Rebuilt from angeo_agent_event by
         Model\Aggregator (cron every hour, "Refresh" button, CLI), so the
         report stays fast on busy stores and outlives the event log.
-        verified_state: 1 verified, 0 spoofed, 2 not checked.
+        verified_state: 1 verified, 0 spoofed, 2 not checked, 3 behind proxy.
     -->
     <table name="angeo_agent_event_daily" resource="default" engine="innodb" comment="Angeo AI agent activity: daily totals">
         <column xsi:type="int" name="row_id" unsigned="true" nullable="false" identity="true" comment="Row ID"/>
@@ -75,6 +84,10 @@
         <column xsi:type="int" name="status_4xx" unsigned="true" nullable="false" default="0" comment="4xx responses"/>
         <column xsi:type="int" name="status_5xx" unsigned="true" nullable="false" default="0" comment="5xx responses"/>
         <column xsi:type="int" name="signed" unsigned="true" nullable="false" default="0" comment="Signed requests"/>
+        <column xsi:type="int" name="rpc_errors" unsigned="true" nullable="false" default="0" comment="JSON-RPC errors"/>
+        <column xsi:type="int" name="cache_hits" unsigned="true" nullable="false" default="0" comment="Full page cache hits"/>
+        <column xsi:type="int" name="cache_misses" unsigned="true" nullable="false" default="0" comment="Full page cache misses"/>
+        <column xsi:type="int" name="query_calls" unsigned="true" nullable="false" default="0" comment="Calls with a query string"/>
         <column xsi:type="bigint" name="duration_sum" unsigned="true" nullable="false" default="0" comment="Sum of durations (ms)"/>
         <column xsi:type="int" name="duration_count" unsigned="true" nullable="false" default="0" comment="Timed calls"/>
         <column xsi:type="int" name="orders" unsigned="true" nullable="false" default="0" comment="Agent-built orders"/>

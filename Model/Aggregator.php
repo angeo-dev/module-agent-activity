@@ -83,6 +83,10 @@ class Aggregator
                     'status_4xx'     => new Expression('SUM(status >= 400 AND status < 500)'),
                     'status_5xx'     => new Expression('SUM(status >= 500)'),
                     'signed'         => new Expression('SUM(signed)'),
+                    'rpc_errors'     => new Expression('SUM(rpc_error)'),
+                    'cache_hits'     => new Expression('IFNULL(SUM(cache = 1), 0)'),
+                    'cache_misses'   => new Expression('IFNULL(SUM(cache = 0), 0)'),
+                    'query_calls'    => new Expression('SUM(has_query)'),
                     'duration_sum'   => new Expression('IFNULL(SUM(duration_ms), 0)'),
                     'duration_count' => new Expression('COUNT(duration_ms)'),
                     'orders'         => new Expression('SUM(order_id IS NOT NULL)'),
@@ -95,6 +99,7 @@ class Aggregator
             $connection->query($connection->insertFromSelect($select, $daily, [
                 'day', 'store_id', 'channel', 'category', 'agent', 'operator', 'operation', 'verified_state',
                 'calls', 'status_2xx', 'status_3xx', 'status_4xx', 'status_5xx', 'signed',
+                'rpc_errors', 'cache_hits', 'cache_misses', 'query_calls',
                 'duration_sum', 'duration_count', 'orders', 'revenue', 'currency',
             ]));
 

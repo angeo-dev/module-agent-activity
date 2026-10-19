@@ -22,6 +22,8 @@ define(['chartJs'], function (Chart) {
         SINGLE = '#2a78d6',
         STATUS_COLORS = {'2xx': '#0ca30c', '3xx': '#898781', '4xx': '#ec835a', '5xx': '#d03b3b'},
         FUNNEL = ['#86b6ef', '#3987e5', '#1c5cab'],
+        // MCP funnel: one hue (the MCP channel color), lighter to darker by step.
+        MCP_FUNNEL = ['#f8c9b4', '#f4a885', '#ef8757', '#eb6834', '#c4501f', '#8f3914'],
         GRID = '#e1e0d9',
         INK = '#52514e',
         MUTED = '#898781',
@@ -206,6 +208,10 @@ define(['chartJs'], function (Chart) {
 
         if ((canvas = find('funnel')) && config.funnel) {
             horizontalBar(canvas, config.funnel, FUNNEL, config.labels.calls);
+        }
+
+        if ((canvas = find('mcpFunnel')) && config.mcpFunnel) {
+            horizontalBar(canvas, config.mcpFunnel, MCP_FUNNEL, config.labels.calls);
         }
     };
 });

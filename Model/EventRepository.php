@@ -10,6 +10,7 @@ namespace Angeo\AgentActivity\Model;
 
 use Angeo\AgentActivity\Model\Agent\Identity;
 use Magento\Framework\App\ResourceConnection;
+use Magento\Framework\DB\Sql\Expression;
 
 /**
  * Writes and prunes angeo_agent_event rows, and the quote markers that
@@ -26,13 +27,15 @@ class EventRepository
     }
 
     /**
-     * @param array{channel: string, operation: string, ref: ?string, path?: ?string} $event
+     * @param array{channel: string, operation: string, ref: ?string, path?: ?string,
+     *     mcp?: ?array{client: ?string, client_version: ?string, protocol: ?string}} $event
      * @param Identity $agent who sent it
      * @param int $storeId store view id
      * @param int $status HTTP status of the response
      * @param int|null $verified IpVerifier::STATE_* or null when not checked
      * @param int|null $durationMs time from request start to response
      * @param array{order_id?: int, value?: float, currency?: string} $order for agent-built orders
+     * @param array{rpc_error?: bool, cache?: ?bool, has_query?: bool} $facts response facts
      */
     public function add(
         array $event,
@@ -41,8 +44,11 @@ class EventRepository
         int $status,
         ?int $verified = null,
         ?int $durationMs = null,
-        array $order = []
+        array $order = [],
+        array $facts = []
     ): void {
+        $mcp = $event['mcp'] ?? null;
+        $cache = $facts['cache'] ?? null;
         $this->resource->getConnection()->insert($this->resource->getTableName(self::TABLE), [
             'store_id'    => $storeId,
             'channel'     => mb_substr($event['channel'], 0, 16),
@@ -59,6 +65,12 @@ class EventRepository
             'order_id'    => $order['order_id'] ?? null,
             'value'       => $order['value'] ?? null,
             'currency'    => isset($order['currency']) ? mb_substr($order['currency'], 0, 3) : null,
+            'client'         => isset($mcp['client']) ? mb_substr((string) $mcp['client'], 0, 64) : null,
+            'client_version' => isset($mcp['client_version']) ? mb_substr((string) $mcp['client_version'], 0, 32) : null,
+            'protocol'       => isset($mcp['protocol']) ? mb_substr((string) $mcp['protocol'], 0, 16) : null,
+            'rpc_error'      => !empty($facts['rpc_error']) ? 1 : 0,
+            'cache'          => $cache === null ? null : ($cache ? 1 : 0),
+            'has_query'      => !empty($facts['has_query']) ? 1 : 0,
         ]);
     }
 
@@ -89,6 +101,19 @@ class EventRepository
                 ->where('quote_id = ?', $quoteId)
         );
         return is_array($row) && $row !== [] ? ['channel' => (string) $row['channel'], 'agent' => (string) $row['agent']] : null;
+    }
+
+    /**
+     * Day (Y-m-d, UTC) of the first stored event, or null when the log is empty.
+     */
+    public function firstDay(): ?string
+    {
+        $connection = $this->resource->getConnection();
+        $value = $connection->fetchOne(
+            $connection->select()
+                ->from($this->resource->getTableName(self::TABLE), [new Expression('MIN(created_at)')])
+        );
+        return is_string($value) && $value !== '' ? substr($value, 0, 10) : null;
     }
 
     /**

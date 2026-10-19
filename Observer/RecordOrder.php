@@ -48,6 +48,8 @@ class RecordOrder implements ObserverInterface
         private readonly AgentDetector $agentDetector,
         private readonly ResourceConnection $resource,
         private readonly RequestInterface $request,
+        private readonly RequestClassifier $classifier,
+        private readonly Catalog $catalog,
         private readonly LoggerInterface $logger
     ) {
     }
@@ -156,8 +158,16 @@ class RecordOrder implements ObserverInterface
             (string) $this->request->getHeader('Signature-Agent'),
             (string) $this->request->getHeader('Signature-Input')
         );
-        return $identity->source === Identity::SOURCE_UNKNOWN
-            ? new Identity($fallback, '', Catalog::CATEGORY_PLATFORM, Identity::SOURCE_UNKNOWN)
-            : $identity;
+        if ($identity->source !== Identity::SOURCE_UNKNOWN) {
+            return $identity;
+        }
+        // MCP: name the client from the clientInfo of the place_order call.
+        $content = method_exists($this->request, 'getContent') ? (string) $this->request->getContent() : '';
+        $client = $content !== '' ? $this->classifier->mcpRequest(substr($content, 0, 65536))['client'] : null;
+        $known = $client !== null ? $this->catalog->matchMcpClient($client) : null;
+        if ($known !== null) {
+            return new Identity($known['name'], $known['operator'], Catalog::CATEGORY_PLATFORM, Identity::SOURCE_MCP_CLIENT);
+        }
+        return new Identity($fallback, '', Catalog::CATEGORY_PLATFORM, Identity::SOURCE_UNKNOWN);
     }
 }

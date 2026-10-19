@@ -13,6 +13,7 @@ use Angeo\AgentActivity\Model\Agent\Identity;
 use Angeo\AgentActivity\Model\AgentDetector;
 use Angeo\AgentActivity\Model\Config;
 use Angeo\AgentActivity\Model\EventRepository;
+use Angeo\AgentActivity\Model\PageCacheState;
 use Angeo\AgentActivity\Model\RequestClassifier;
 use Angeo\AgentActivity\Model\Verify\IpVerifier;
 use Magento\Checkout\Model\Session as CheckoutSession;
@@ -38,6 +39,7 @@ use Psr\Log\LoggerInterface;
 class RecordRequest implements ObserverInterface
 {
     private const MCP_BODY_LIMIT = 65536;
+    private const RESPONSE_PEEK = 65536;
 
     public function __construct(
         private readonly Config $config,
@@ -48,6 +50,8 @@ class RecordRequest implements ObserverInterface
         private readonly StoreManagerInterface $storeManager,
         private readonly RemoteAddress $remoteAddress,
         private readonly CheckoutSession $checkoutSession,
+        private readonly Catalog $catalog,
+        private readonly PageCacheState $pageCache,
         private readonly LoggerInterface $logger
     ) {
     }
@@ -105,11 +109,15 @@ class RecordRequest implements ObserverInterface
             (string) $request->getHeader('X-Angeo-Agent-Tool'),
             $isAiAgent,
             $identity->category === Catalog::CATEGORY_AGENT,
-            $body
+            $body,
+            (string) $request->getFullActionName(),
+            (string) $request->getHeader('Mcp-Method'),
+            (string) $request->getHeader('Mcp-Name')
         );
         if ($event === null) {
             return;
         }
+        $identity = $this->mcpIdentity($identity, $event);
         if ($identity->source === Identity::SOURCE_UNKNOWN && $event['channel'] === RequestClassifier::CHANNEL_WEBMCP) {
             $identity = new Identity('browser', '', Catalog::CATEGORY_PLATFORM, Identity::SOURCE_BROWSER);
         }
@@ -122,13 +130,21 @@ class RecordRequest implements ObserverInterface
         $duration = $started > 0 ? (int) round((microtime(true) - $started) * 1000) : null;
         $status = $response !== null ? (int) $response->getHttpResponseCode() : 0;
 
+        $isMcp = $event['channel'] === RequestClassifier::CHANNEL_MCP;
         $this->events->add(
             $event,
             $identity,
             (int) $this->storeManager->getStore()->getId(),
             $status,
             $verified,
-            $duration
+            $duration,
+            [],
+            [
+                'rpc_error' => $isMcp && $response !== null && $status < 400
+                    && RequestClassifier::isRpcError(substr((string) $response->getContent(), 0, self::RESPONSE_PEEK)),
+                'cache'     => $event['channel'] === RequestClassifier::CHANNEL_CRAWLER ? $this->pageCache->get() : null,
+                'has_query' => (string) parse_url((string) $request->getRequestUri(), PHP_URL_QUERY) !== '',
+            ]
         );
 
         if ($event['channel'] === RequestClassifier::CHANNEL_WEBMCP
@@ -141,5 +157,35 @@ class RecordRequest implements ObserverInterface
                 $identity->name
             );
         }
+    }
+
+    /**
+     * Name an unknown MCP caller by the clientInfo it sent (e.g. "claude-ai").
+     *
+     * @param Identity $identity
+     * @param array<string, mixed> $event
+     * @return Identity
+     */
+    private function mcpIdentity(Identity $identity, array $event): Identity
+    {
+        $client = $event['mcp']['client'] ?? null;
+        if ($event['channel'] !== RequestClassifier::CHANNEL_MCP
+            || $identity->source !== Identity::SOURCE_UNKNOWN
+            || !is_string($client)
+        ) {
+            return $identity;
+        }
+        $known = $this->catalog->matchMcpClient($client);
+        if ($known === null) {
+            return $identity;
+        }
+        return new Identity(
+            $known['name'],
+            $known['operator'],
+            Catalog::CATEGORY_PLATFORM,
+            Identity::SOURCE_MCP_CLIENT,
+            null,
+            $identity->signed
+        );
     }
 }

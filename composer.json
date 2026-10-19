@@ -2,7 +2,7 @@
     "name": "angeo/module-agent-activity",
     "description": "See what AI agents do in your Magento 2 store: UCP, MCP and WebMCP calls, AI crawler and agent page visits, agent-built orders and revenue. Admin report with charts, event log grid, CSV and CLI reports, bot IP verification. No IP addresses stored.",
     "type": "magento2-module",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "license": "MIT",
     "keywords": [
         "magento2",

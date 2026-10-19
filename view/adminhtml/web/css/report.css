@@ -42,6 +42,24 @@
 .angeo-agents .aa-details summary { cursor: pointer; color: #007bdb; }
 .angeo-agents .aa-list { margin: 8px 0 0 18px; }
 .angeo-agents .aa-note { color: var(--aa-muted); font-size: 12px; margin-top: 24px; }
+.angeo-agents .aa-export { position: relative; }
+.angeo-agents .aa-export > summary { list-style: none; cursor: pointer; }
+.angeo-agents .aa-export > summary::-webkit-details-marker { display: none; }
+.angeo-agents .aa-export__menu { position: absolute; right: 0; z-index: 20; min-width: 260px; margin: 4px 0 0; padding: 6px 0; list-style: none; background: var(--aa-surface); border: 1px solid var(--aa-line); border-radius: 6px; box-shadow: 0 4px 12px rgba(0, 0, 0, .12); }
+.angeo-agents .aa-export__menu li { margin: 0; }
+.angeo-agents .aa-export__menu a { display: block; padding: 6px 14px; color: var(--aa-ink); text-decoration: none; }
+.angeo-agents .aa-export__menu a:hover { background: #f5f5f5; }
+.angeo-agents .aa-findings { margin: 0 0 24px; }
+.angeo-agents .aa-findings__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.angeo-agents .aa-finding { display: flex; gap: 12px; align-items: flex-start; margin: 0; padding: 10px 14px; background: var(--aa-surface); border: 1px solid var(--aa-line); border-left-width: 4px; border-radius: 6px; }
+.angeo-agents .aa-finding--critical { border-left-color: var(--aa-bad); }
+.angeo-agents .aa-finding--warning { border-left-color: #eb6834; }
+.angeo-agents .aa-finding--info { border-left-color: #2a78d6; }
+.angeo-agents .aa-finding--good { border-left-color: var(--aa-good); }
+.angeo-agents .aa-finding__level { flex: 0 0 72px; font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--aa-ink-2); padding-top: 2px; }
+.angeo-agents .aa-finding__title { font-weight: 600; color: var(--aa-ink); }
+.angeo-agents .aa-finding__detail { color: var(--aa-ink-2); margin-top: 2px; }
+.angeo-agents .aa-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 8px; background: #fdf0e9; color: #8f3914; font-size: 11px; white-space: nowrap; }
 @media (forced-colors: active) {
     .angeo-agents .aa-legend__key { forced-color-adjust: none; }
 }

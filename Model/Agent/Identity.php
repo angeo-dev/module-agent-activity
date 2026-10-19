@@ -13,7 +13,8 @@ namespace Angeo\AgentActivity\Model\Agent;
  *
  * source: how the name was found — "ucp" (UCP-Agent profile host),
  * "signature" (Web Bot Auth Signature-Agent host), "user_agent" (known
- * token), "browser" (WebMCP call from a shopper's browser) or "unknown".
+ * token), "browser" (WebMCP call from a shopper's browser), "mcp_client"
+ * (clientInfo name sent in an MCP request) or "unknown".
  */
 class Identity
 {
@@ -21,6 +22,7 @@ class Identity
     public const SOURCE_SIGNATURE  = 'signature';
     public const SOURCE_USER_AGENT = 'user_agent';
     public const SOURCE_BROWSER    = 'browser';
+    public const SOURCE_MCP_CLIENT = 'mcp_client';
     public const SOURCE_UNKNOWN    = 'unknown';
 
     /**

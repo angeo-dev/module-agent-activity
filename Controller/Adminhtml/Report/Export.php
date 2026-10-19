@@ -18,7 +18,8 @@ use Magento\Framework\App\Response\Http\FileFactory;
 use Magento\Framework\App\ResponseInterface;
 
 /**
- * Downloads the report for the shown scope as CSV.
+ * Downloads the report for the shown scope: the whole report as CSV, one
+ * section as CSV (?section=agents), or everything as JSON (?format=json).
  */
 class Export extends Action implements HttpGetActionInterface
 {
@@ -45,10 +46,21 @@ class Export extends Action implements HttpGetActionInterface
     public function execute(): ResponseInterface
     {
         $filter = $this->filterResolver->fromRequest($this->getRequest());
-        $name = sprintf('ai-agent-activity_%s_%s.csv', $filter->from, $filter->to);
+        $section = (string) $this->getRequest()->getParam('section', '');
+        $section = isset(CsvExport::SECTIONS[$section]) ? $section : '';
+        $base = sprintf('ai-agent-activity_%s_%s', $filter->from, $filter->to);
+
+        if ($this->getRequest()->getParam('format') === 'json') {
+            return $this->fileFactory->create(
+                $base . '.json',
+                $this->csvExport->buildJson($filter),
+                DirectoryList::VAR_DIR,
+                'application/json'
+            );
+        }
         return $this->fileFactory->create(
-            $name,
-            $this->csvExport->build($filter),
+            $base . ($section !== '' ? '_' . $section : '') . '.csv',
+            $this->csvExport->build($filter, $section),
             DirectoryList::VAR_DIR,
             'text/csv'
         );

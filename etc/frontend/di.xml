@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright (c) 2026 Ievgenii Gryshkun (angeo.dev)
+ * MIT License — see LICENSE for full terms.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <!-- Built-in full page cache: hit or miss, for crawler page speed. -->
+    <type name="Magento\Framework\App\PageCache\Kernel">
+        <plugin name="angeo_agent_activity_cache_state" type="Angeo\AgentActivity\Plugin\PageCacheKernel"/>
+    </type>
+    <type name="Angeo\AgentActivity\Model\PageCacheState" shared="true"/>
+</config>

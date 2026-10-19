@@ -24,6 +24,7 @@ class Verified implements OptionSourceInterface
         return [
             ['value' => (string) IpVerifier::STATE_VERIFIED, 'label' => __('Verified')],
             ['value' => (string) IpVerifier::STATE_FAILED, 'label' => __('Spoofed')],
+            ['value' => (string) IpVerifier::STATE_BEHIND_PROXY, 'label' => __('Behind proxy (not checked)')],
         ];
     }
 }

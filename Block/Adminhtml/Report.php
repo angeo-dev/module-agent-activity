@@ -10,7 +10,10 @@ namespace Angeo\AgentActivity\Block\Adminhtml;
 
 use Angeo\AgentActivity\Model\Agent\Catalog;
 use Angeo\AgentActivity\Model\Aggregator;
+use Angeo\AgentActivity\Model\EventRepository;
+use Angeo\AgentActivity\Model\Insights;
 use Angeo\AgentActivity\Model\Report as ReportModel;
+use Angeo\AgentActivity\Model\Report\CsvExport;
 use Angeo\AgentActivity\Model\Report\Filter;
 use Angeo\AgentActivity\Model\Report\FilterResolver;
 use Angeo\AgentActivity\Model\Source\Channel;
@@ -49,6 +52,8 @@ class Report extends Template
         private readonly Aggregator $aggregator,
         private readonly TimezoneInterface $timezone,
         private readonly Json $json,
+        private readonly Insights $insights,
+        private readonly EventRepository $events,
         array $data = []
     ) {
         parent::__construct($context, $data);
@@ -125,9 +130,30 @@ class Report extends Template
         return $params;
     }
 
-    public function getExportUrl(): string
+    /**
+     * @param string $section one of CsvExport::SECTIONS, or '' for the whole report
+     * @param string $format csv or json
+     */
+    public function getExportUrl(string $section = '', string $format = 'csv'): string
     {
-        return $this->getUrl('*/*/export', ['_query' => $this->getScopeParams()]);
+        $params = $this->getScopeParams();
+        if ($section !== '') {
+            $params['section'] = $section;
+        }
+        if ($format !== 'csv') {
+            $params['format'] = $format;
+        }
+        return $this->getUrl('*/*/export', ['_query' => $params]);
+    }
+
+    /**
+     * Sections that can be exported on their own: code => label.
+     *
+     * @return array<string, string>
+     */
+    public function getExportSections(): array
+    {
+        return array_map(static fn (string $label): string => (string) __($label), CsvExport::SECTIONS);
     }
 
     public function getRefreshUrl(): string
@@ -258,6 +284,129 @@ class Report extends Template
     }
 
     /**
+     * Findings for the period, most serious first.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getFindings(): array
+    {
+        return $this->memo['findings'] ??= $this->insights->build($this->getFilter());
+    }
+
+    /**
+     * Title and detail of a finding, translated, with placeholders filled.
+     *
+     * @param array<string, mixed> $finding
+     * @return array{title: string, detail: string}
+     */
+    public function findingText(array $finding): array
+    {
+        $args = array_values($finding['args']);
+        return [
+            'title'  => (string) __($finding['title'], ...$args),
+            'detail' => (string) __($finding['detail'], ...$args),
+        ];
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public function getMcpFunnel(): array
+    {
+        return $this->memo['mcpFunnel'] ??= $this->report->mcpFunnel($this->getFilter());
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getMcpClients(): array
+    {
+        return $this->memo['mcpClients'] ??= $this->report->mcpClients($this->getFilter(), 25);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getMcpVersions(): array
+    {
+        return $this->memo['mcpVersions'] ??= $this->report->mcpVersions($this->getFilter());
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getTools(): array
+    {
+        return $this->memo['tools'] ??= $this->report->byTool($this->getFilter(), 50);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getContentMix(): array
+    {
+        return $this->memo['mix'] ??= $this->report->contentMix($this->getFilter());
+    }
+
+    /**
+     * Agent categories that appear in the content mix, in display order.
+     *
+     * @return array<string, string> code => label
+     */
+    public function getMixCategories(): array
+    {
+        $seen = [];
+        foreach ($this->getContentMix() as $row) {
+            $seen += $row['by_category'];
+        }
+        $out = [];
+        foreach (Catalog::categories() as $code => $label) {
+            if (isset($seen[$code])) {
+                $out[$code] = (string) __($label);
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * First day with data (UTC), or null.
+     */
+    public function getFirstDay(): ?string
+    {
+        if (!array_key_exists('firstDay', $this->memo)) {
+            $this->memo['firstDay'] = $this->events->firstDay();
+        }
+        return $this->memo['firstDay'];
+    }
+
+    /**
+     * A path made readable: the base64 "referer" of a login URL is decoded.
+     *
+     * "/customer/account/login/referer/aHR0cHM6…" → "/customer/account/login ← /women/tops-women.html?climate=205"
+     */
+    public function prettyPath(string $path): string
+    {
+        if (!preg_match('#^(.*?)/referer/([A-Za-z0-9_\-~,]+)/?$#', $path, $m)) {
+            return $path;
+        }
+        $decoded = base64_decode(strtr($m[2], '-_~,', '+/=='), true);
+        if ($decoded === false || !preg_match('#^https?://#', $decoded)) {
+            return $path;
+        }
+        $parts = parse_url($decoded);
+        $from = ($parts['path'] ?? '/') . (isset($parts['query']) ? '?' . $parts['query'] : '');
+        return $m[1] . ' ← ' . $from;
+    }
+
+    /**
+     * Whether a path is a system URL without a rewrite.
+     */
+    public function isRawUrl(string $path): bool
+    {
+        return (bool) preg_match('#^/catalog/(product|category)/view/#', $path);
+    }
+
+    /**
      * Human label for a channel code.
      */
     public function channelLabel(string $channel): string
@@ -337,6 +486,15 @@ class Report extends Template
             $status[] = ['key' => $class, 'label' => $class, 'value' => $count];
         }
         $funnel = $this->getFunnel();
+        $mcp = $this->getMcpFunnel();
+        $mcpSteps = [
+            ['label' => (string) __('Discovery'), 'value' => $mcp['discover']],
+            ['label' => (string) __('Tool and prompt lists'), 'value' => $mcp['list']],
+            ['label' => (string) __('Tool calls'), 'value' => $mcp['tool_calls']],
+            ['label' => (string) __('Cart tools'), 'value' => $mcp['cart']],
+            ['label' => (string) __('Checkout tools'), 'value' => $mcp['checkout']],
+            ['label' => (string) __('Orders'), 'value' => $mcp['orders']],
+        ];
 
         return (string) $this->json->serialize([
             'days'       => $daily['days'],
@@ -349,6 +507,7 @@ class Report extends Template
                 ['label' => (string) __('Handed to buyer'), 'value' => $funnel['escalated']],
                 ['label' => (string) __('Orders placed'), 'value' => $funnel['orders']],
             ],
+            'mcpFunnel'  => array_sum(array_column($mcpSteps, 'value')) > 0 ? $mcpSteps : null,
             'labels'     => [
                 'calls'  => (string) __('Calls'),
                 'orders' => (string) __('Orders'),

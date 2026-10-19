@@ -17,7 +17,13 @@
             "ref": true,
             "order_id": true,
             "value": true,
-            "currency": true
+            "currency": true,
+            "client_version": true,
+            "protocol": true,
+            "rpc_error": true,
+            "cache": true,
+            "has_query": true,
+            "client": true
         },
         "index": {
             "ANGEO_AGENT_EVENT_CREATED_AT": true,
@@ -50,7 +56,11 @@
             "duration_count": true,
             "orders": true,
             "revenue": true,
-            "currency": true
+            "currency": true,
+            "rpc_errors": true,
+            "cache_hits": true,
+            "cache_misses": true,
+            "query_calls": true
         },
         "index": {
             "ANGEO_AGENT_EVENT_DAILY_DAY_STORE": true

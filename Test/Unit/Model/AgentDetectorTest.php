@@ -64,6 +64,14 @@ class AgentDetectorTest extends TestCase
         self::assertSame('https://openai.com/gptbot.json', $this->detector->detect('', 'GPTBot/1.2')->ranges);
         self::assertSame('https://claude.com/crawling/bots.json', $this->detector->detect('', 'ClaudeBot/1.0')->ranges);
         self::assertNull($this->detector->detect('', 'Bytespider')->ranges);
+        self::assertSame(
+            'https://developers.google.com/static/crawling/ipranges/common-crawlers.json',
+            $this->detector->detect('', 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)')->ranges
+        );
+        self::assertSame(
+            'https://www.bing.com/toolbox/bingbot.json',
+            $this->detector->detect('', 'Mozilla/5.0 (compatible; bingbot/2.0)')->ranges
+        );
     }
 
     public function testOrdinaryBrowserIsUnknown(): void
@@ -89,6 +97,8 @@ class AgentDetectorTest extends TestCase
 
         $unknownSigner = $this->detector->detect('', $chrome, '"https://bots.example.net"', $input);
         self::assertSame('bots.example.net', $unknownSigner->name);
+        self::assertSame(Catalog::CATEGORY_OTHER, $unknownSigner->category, 'unknown signers are not AI agents');
+        self::assertSame('example.net', $unknownSigner->operator);
     }
 
     public function testSignatureWithoutWebBotAuthTagIsIgnored(): void

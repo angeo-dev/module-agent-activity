@@ -15,7 +15,7 @@
     <settings>
         <buttons>
             <button name="report">
-                <url path="*/report/index"/>
+                <url path="angeo_agents/report/index"/>
                 <class>secondary</class>
                 <label translate="true">Back to Report</label>
             </button>
@@ -47,12 +47,22 @@
         </settings>
         <bookmark name="bookmarks"/>
         <columnsControls name="columns_controls"/>
-        <filterSearch name="fulltext" provider="" visible="false"/>
         <filters name="listing_filters"/>
         <exportButton name="export_button"/>
         <paging name="listing_paging"/>
     </listingToolbar>
     <columns name="angeo_agent_event_columns">
+        <!--
+            Required for Export. The export button builds its POST body from
+            the selections column (filters, namespace, selected/excluded).
+            Without it the body is empty, and the admin ajax setup then drops
+            the form_key, so the export fails with "Invalid Form Key".
+        -->
+        <selectionsColumn name="ids" sortOrder="0">
+            <settings>
+                <indexField>event_id</indexField>
+            </settings>
+        </selectionsColumn>
         <column name="event_id" sortOrder="10">
             <settings>
                 <filter>textRange</filter>
@@ -149,6 +159,53 @@
             <settings>
                 <filter>text</filter>
                 <label translate="true">Checkout / Order</label>
+            </settings>
+        </column>
+        <column name="client" sortOrder="142">
+            <settings>
+                <filter>text</filter>
+                <label translate="true">MCP Client</label>
+                <visible>false</visible>
+            </settings>
+        </column>
+        <column name="client_version" sortOrder="143">
+            <settings>
+                <filter>text</filter>
+                <label translate="true">Client Version</label>
+                <visible>false</visible>
+            </settings>
+        </column>
+        <column name="protocol" sortOrder="144">
+            <settings>
+                <filter>text</filter>
+                <label translate="true">MCP Protocol</label>
+                <visible>false</visible>
+            </settings>
+        </column>
+        <column name="rpc_error" component="Magento_Ui/js/grid/columns/select" sortOrder="145">
+            <settings>
+                <options class="Magento\Config\Model\Config\Source\Yesno"/>
+                <filter>select</filter>
+                <dataType>select</dataType>
+                <label translate="true">JSON-RPC Error</label>
+            </settings>
+        </column>
+        <column name="cache" component="Magento_Ui/js/grid/columns/select" sortOrder="146">
+            <settings>
+                <options class="Angeo\AgentActivity\Model\Source\CacheState"/>
+                <filter>select</filter>
+                <dataType>select</dataType>
+                <label translate="true">Page Cache</label>
+                <visible>false</visible>
+            </settings>
+        </column>
+        <column name="has_query" component="Magento_Ui/js/grid/columns/select" sortOrder="147">
+            <settings>
+                <options class="Magento\Config\Model\Config\Source\Yesno"/>
+                <filter>select</filter>
+                <dataType>select</dataType>
+                <label translate="true">Query String</label>
+                <visible>false</visible>
             </settings>
         </column>
         <column name="value" sortOrder="150">

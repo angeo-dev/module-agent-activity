@@ -53,6 +53,53 @@ class ClassifierTest extends TestCase
         self::assertNull($this->op('GET', '/mcp'));
     }
 
+    public function testMcpClientInfo(): void
+    {
+        $c = new RequestClassifier();
+        $init = (string) json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize', 'params' => [
+            'protocolVersion' => '2025-11-25',
+            'clientInfo' => ['name' => 'claude-ai', 'version' => '0.1.0'],
+        ]]);
+        self::assertSame(
+            ['operation' => 'initialize', 'client' => 'claude-ai', 'client_version' => '0.1.0', 'protocol' => '2025-11-25'],
+            $c->mcpRequest($init)
+        );
+
+        // Stateless MCP 2026-07-28: client facts in params._meta on every request.
+        $discover = (string) json_encode(['jsonrpc' => '2.0', 'id' => 2, 'method' => 'server/discover', 'params' => [
+            '_meta' => [
+                'io.modelcontextprotocol/protocolVersion' => '2026-07-28',
+                'io.modelcontextprotocol/clientInfo' => ['name' => 'Cursor', 'version' => '2.1'],
+            ],
+        ]]);
+        $row = $c->classify('POST', '/mcp', '', false, false, $discover);
+        self::assertSame('server/discover', $row['operation'] ?? null);
+        self::assertSame(['client' => 'Cursor', 'client_version' => '2.1', 'protocol' => '2026-07-28'], $row['mcp'] ?? null);
+
+        // Body without a method: the Mcp-Method / Mcp-Name headers fill in.
+        self::assertSame('tools/call:get_cart', $c->mcpRequest('', 'tools/call', 'get_cart')['operation']);
+        self::assertNull($c->mcpRequest('{"method":"tools/list"}')['client']);
+    }
+
+    public function testRpcErrors(): void
+    {
+        self::assertTrue(RequestClassifier::isRpcError('{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"x"}}'));
+        self::assertTrue(RequestClassifier::isRpcError('{"jsonrpc":"2.0","id":1,"result":{"isError":true,"content":[]}}'));
+        self::assertTrue(RequestClassifier::isRpcError("event: message\ndata: {\"id\":1,\"error\":{\"code\":1}}\n\n"));
+        self::assertFalse(RequestClassifier::isRpcError('{"jsonrpc":"2.0","id":1,"result":{"content":[{"text":"no error"}]}}'));
+        self::assertFalse(RequestClassifier::isRpcError(''));
+    }
+
+    public function testPageTypeFromRoute(): void
+    {
+        $c = new RequestClassifier();
+        self::assertSame('product', $c->classify('GET', '/fusion-backpack.html', '', true, false, '', 'catalog_product_view')['operation'] ?? null);
+        self::assertSame('category', $c->classify('GET', '/women/tops.html', '', true, false, '', 'catalog_category_view')['operation'] ?? null);
+        self::assertSame('category', $c->classify('GET', '/catalog/category/view/id/21', '', true)['operation'] ?? null);
+        self::assertSame('cms', $c->classify('GET', '/about-us', '', true, false, '', 'cms_page_view')['operation'] ?? null);
+        self::assertSame('robots.txt', $c->classify('GET', '/robots.txt', '', true, false, '', 'cms_noroute_index')['operation'] ?? null);
+    }
+
     public function testWebMcp(): void
     {
         self::assertSame('webmcp:add_to_cart', $this->op('POST', '/webmcp/cart/add'));
