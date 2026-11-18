@@ -731,14 +731,13 @@ class Report
      */
     public function robotsRedirects(Filter $filter): array
     {
-        $rows = $this->connection()->fetchAll(
-            $this->callsSelect($filter)
-                ->columns(['agent', 'calls' => new Expression('SUM(status_3xx)')])
-                ->where('operation = ?', 'robots.txt')
-                ->group('agent')
-                ->having('SUM(status_3xx) > 0')
-                ->order('calls DESC')
-        );
+        $select = $this->callsSelect($filter);
+        $select->columns(['agent', 'calls' => new Expression('SUM(status_3xx)')])
+            ->where('operation = ?', 'robots.txt')
+            ->group('agent')
+            ->having('SUM(status_3xx) > 0')
+            ->order('calls DESC');
+        $rows = $this->connection()->fetchAll($select);
         return [
             'calls'  => (int) array_sum(array_column($rows, 'calls')),
             'agents' => array_map(static fn (array $r): string => (string) $r['agent'], $rows),

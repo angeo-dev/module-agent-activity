@@ -4,6 +4,14 @@ All notable changes to `angeo/module-agent-activity` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-11-18
+
+### Fixed
+
+- PHPStan failed on `Report::robotsRedirects()`: the query was passed to
+  `fetchAll()` as a `Zend_Db_Select`. It is now built as a Magento `Select`
+  first. No change in behaviour.
+
 ## [1.2.0] - 2026-10-24
 
 Numbers you can trust. Found on the demo store: most "system URL" fetches
