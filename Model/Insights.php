@@ -11,6 +11,7 @@ namespace Angeo\AgentActivity\Model;
 use Angeo\AgentActivity\Model\Agent\Catalog;
 use Angeo\AgentActivity\Model\Insights\Rules;
 use Angeo\AgentActivity\Model\Report\Filter;
+use Angeo\AgentActivity\Model\Verify\RangeRefresher;
 use Angeo\AgentActivity\Model\Verify\RangeStore;
 
 /**
@@ -24,7 +25,8 @@ class Insights
         private readonly EventRepository $events,
         private readonly Catalog $catalog,
         private readonly RangeStore $rangeStore,
-        private readonly Rules $rules
+        private readonly Rules $rules,
+        private readonly RangeRefresher $rangeRefresher
     ) {
     }
 
@@ -113,8 +115,12 @@ class Insights
             'waste_detail'          => implode(', ', $wasteParts),
             'raw_urls'              => $this->report->rawUrlFetches($filter),
             'page_avg_ms'           => $pageCount > 0 ? (int) round($pageSum / $pageCount) : 0,
-            'error_paths'           => $this->report->errorPaths($filter, 5),
+            'page_calls'            => $pageCount,
+            'error_paths'           => $this->report->errorPaths($filter, 5, true),
             'unchecked_with_ranges' => $unchecked,
+            'ranges_status'         => $this->rangeRefresher->lastStatus(),
+            'query_keys'            => $this->report->queryKeys($filter, 5),
+            'robots_redirects'      => $this->report->robotsRedirects($filter),
             'first_day'             => $first,
             'days_of_data'          => $days,
         ];

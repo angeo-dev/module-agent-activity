@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace Angeo\AgentActivity\Test\Unit\Model\Report;
 
+use Angeo\AgentActivity\Model\EventRepository;
 use Angeo\AgentActivity\Model\Insights;
 use Angeo\AgentActivity\Model\Report;
 use Angeo\AgentActivity\Model\Report\CsvExport;
@@ -38,7 +39,9 @@ class CsvExportTest extends TestCase
             'code' => 'mcp_no_tool_calls', 'level' => 'warning', 'title' => 'MCP clients connect',
             'detail' => '%1 discovery calls', 'count' => 62, 'args' => [62],
         ]]);
-        $export = new CsvExport($report, $insights);
+        $events = $this->createMock(EventRepository::class);
+        $events->method('firstDay')->willReturn('2026-10-16');
+        $export = new CsvExport($report, $insights, $events);
         $filter = new Filter('2026-10-15', '2026-10-16');
         $csv = $export->build($filter);
 
@@ -46,6 +49,8 @@ class CsvExportTest extends TestCase
         self::assertStringContainsString('"\'=HYPERLINK(""x"")"', $csv, 'formula cells are neutralised');
         self::assertStringContainsString('"# Findings"', $csv);
         self::assertStringContainsString('"62 discovery calls"', $csv, 'placeholders are filled');
+        self::assertStringStartsWith("\"# Report\"\r\n\"key\",\"value\"", $csv, 'first block is the report facts');
+        self::assertStringContainsString('"data_from","2026-10-16"', $csv, 'data start is stated');
 
         $agents = $export->build($filter, 'agents');
         self::assertStringStartsWith('"agent","operator","category","calls"', $agents, 'one section is a plain table');
@@ -53,6 +58,19 @@ class CsvExportTest extends TestCase
 
         $json = json_decode($export->buildJson($filter), true);
         self::assertSame('mcp_no_tool_calls', $json['findings'][0]['code'] ?? null);
+
+        if (class_exists(\ZipArchive::class)) {
+            $zip = $export->buildZip($filter);
+            self::assertIsString($zip);
+            $file = tempnam(sys_get_temp_dir(), 'aa-test');
+            file_put_contents($file, $zip);
+            $archive = new \ZipArchive();
+            self::assertTrue($archive->open($file));
+            self::assertNotFalse($archive->locateName('report.csv'));
+            self::assertStringStartsWith('"agent","operator"', (string) $archive->getFromName('agents.csv'));
+            $archive->close();
+            unlink($file);
+        }
     }
 
     public function testNegativeNumbersStayNumbers(): void

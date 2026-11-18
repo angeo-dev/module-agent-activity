@@ -32,6 +32,8 @@ Every agent has a **type**, so you can tell why it came:
 | AI search | OAI-SearchBot, Claude-SearchBot, PerplexityBot, Applebot, Amzn-SearchBot |
 | Training crawler | GPTBot, ClaudeBot, Meta-ExternalAgent, Amazonbot, CCBot, Bytespider |
 | Search engine | Googlebot, Bingbot — off by default |
+| Other signed bot | A bot with a Web Bot Auth signature that is not a known AI agent |
+| Unknown client | Nothing in the request said who sent it (no UCP-Agent, user agent or `clientInfo`) |
 
 ## Is that bot real?
 
@@ -42,7 +44,8 @@ these vendors publish and marks them **verified** or **spoofed**. When
 Magento sees a private address (a proxy or load balancer without trusted
 forwarding headers), the call is marked **behind proxy** instead, and the
 report tells you to fix the forwarding. The lists are downloaded once a day by cron; the client IP is
-used for the check and never stored.
+used for the check and never stored. If cron does not run, the report says
+so, and **Refresh now** downloads the lists once.
 
 Requests signed with **Web Bot Auth** (`Signature-Agent` +
 `tag="web-bot-auth"`) are marked as *signed*, and agents that browse with an
@@ -68,7 +71,8 @@ signer. The signature itself is not verified here; do that at your CDN.
   - nobody reads llms.txt
   - crawlers wasting visits on account, cart, checkout and search pages
   - URLs without a URL rewrite (`/catalog/category/view/id/21`)
-  - many URLs with filters or tracking parameters
+  - many URLs with filters or tracking parameters, with the parameter names
+  - robots.txt answered with a redirect
   - slow pages for crawlers, with the page cache hit rate
   - error pages served to agents
 - Summary: agent calls, distinct agents, agent-built orders and revenue,
@@ -83,8 +87,14 @@ signer. The signature itself is not verified here; do that at your CDN.
   **what agents read** (page type × agent type, with speed, cache hits,
   query strings and errors), agent-built orders, operations, most fetched
   pages (login URLs show the page they came from)
-- **Export**: the whole report as CSV, each section as its own CSV table, or
-  everything with the findings as JSON. **Refresh now** rebuilds the totals
+- Findings are sorted by level, then by the number of calls they affect.
+  One-off events (a single error, a single tool call) are not reported as
+  a pattern. Calls from test and audit tools (`angeo-agentic-scan`, MCP
+  Inspector) are logged but never raise an error finding.
+- **Export**: the whole report as CSV (starting with a *Report* block:
+  period, store and the first day with data), each section as its own CSV
+  table, every section as plain CSV files in one ZIP, or everything with
+  the findings as JSON. **Refresh now** rebuilds the totals
 
 Charts use the Chart.js that ships with Magento (3.9 in 2.4.6, 4.x in
 2.4.7+): no CDN, no inline JavaScript. Every chart has a table with the same
@@ -133,8 +143,8 @@ after install, press **Refresh now** in the report.
 
 ## Privacy
 
-No IP address, no full user agent, no request body, no query string, no
-customer data. An agent is a short name (`chatgpt-user`) or the host of its
+No IP address, no full user agent, no request body, no query string
+values (only parameter names), no customer data. An agent is a short name (`chatgpt-user`) or the host of its
 UCP platform profile. See [SECURITY.md](SECURITY.md) for exactly what is
 stored.
 
@@ -156,6 +166,9 @@ INSERT. The report never scans the event log.
 
 ## Good to know
 
+- The path is the URL the crawler asked for (`/women/tops-women.html`), also
+  when Magento routes it to `/catalog/category/view/id/21`. Page cache hits
+  get their page type from the URL rewrite table.
 - Only requests that reach Magento are counted. Pages served from Varnish,
   LiteSpeed cache or a CDN are not, so web page numbers are a lower bound.
   UCP, MCP and WebMCP endpoints are not cached and are always counted.

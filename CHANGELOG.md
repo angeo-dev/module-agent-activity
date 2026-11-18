@@ -4,6 +4,63 @@ All notable changes to `angeo/module-agent-activity` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-10-24
+
+Numbers you can trust. Found on the demo store: most "system URL" fetches
+were the module's own mistake, and several findings were noise.
+
+### Fixed
+
+- **Crawler paths are the URLs crawlers asked for.** The path was read from
+  `getPathInfo()`, which after URL rewrite routing holds the target
+  (`/catalog/category/view/id/21`) instead of the requested URL
+  (`/women/tops-women.html`). Every routed category and product page looked
+  like a system URL and raised the "URLs without a URL rewrite" warning.
+  The path now comes from `getOriginalPathInfo()`. The raw URL check counts
+  only days after the upgrade.
+- **Page type on a full page cache hit.** A hit is answered before routing,
+  so product and category pages were logged as `page`. The type now comes
+  from the URL rewrite table (one indexed lookup, only for known crawlers).
+- **Unknown callers are no longer "Agent platform".** A request that names
+  nobody gets the new type *Unknown client*.
+- **Stored events are made consistent** (data patch): old `page` rows for
+  `/catalog/…/view/` become `category` / `product`, unknown callers move to
+  *Unknown client*, and the daily totals are rebuilt.
+- **Finding order.** Findings were sorted by their number, so "1080 ms" put
+  slow pages first. They are now sorted by the calls they affect.
+- **No findings from one event.** Error and MCP funnel findings need at
+  least 3 events. Errors from test and audit tools (`angeo-agentic-scan`,
+  MCP Inspector) never count.
+- The agent table said "No vendor IP list" for Googlebot and others whose
+  list was simply not downloaded yet. It now says "Not checked: IP list
+  missing".
+- The event grid exported the store view with the padding of the nested
+  core store list. The column now uses flat "Website / Store / View" names.
+
+### Added
+
+- **Query parameter names** for crawler pages (`climate,price`; never the
+  values). New report table, CSV/JSON section and grid column; the
+  query-string finding names the busiest parameters and becomes a warning
+  above 30% of crawler calls.
+- **robots.txt redirect** finding: robots.txt answered with 3xx.
+- **IP list status.** The refresh job records its last run. The "IP lists
+  missing" finding says whether the download never ran (cron) or failed
+  (with the error). **Refresh now** downloads the lists once when none is
+  stored.
+- **ZIP export**: every section as its own plain CSV, plus `report.csv`
+  with the period facts. The whole-report CSV now starts with a *Report*
+  block (`from`, `to`, `store`, `data_from`, `generated_at`), so days before
+  tracking started are not mistaken for zero traffic.
+- Exa (`crawler.exa.ai`, Web Bot Auth) is named as AI search.
+
+### Changed
+
+- Requires `magento/module-url-rewrite`.
+- The crawl waste finding explains that a bot with its own robots.txt group
+  ignores `User-agent: *`, and points to Crawl Hygiene in
+  `angeo/module-robots-txt-aeo` 4.1.
+
 ## [1.1.0] - 2026-10-19
 
 More data per call and a report that explains itself.

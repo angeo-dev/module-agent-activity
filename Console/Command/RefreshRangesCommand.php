@@ -35,7 +35,7 @@ class RefreshRangesCommand extends Command
     protected function configure(): void
     {
         $this->setName('angeo:agents:refresh-ranges')
-            ->setDescription('Download the published IP ranges of OpenAI, Anthropic, Perplexity and Google-Agent.');
+            ->setDescription('Download the published bot IP ranges (OpenAI, Anthropic, Perplexity, Google, Microsoft).');
     }
 
     /**

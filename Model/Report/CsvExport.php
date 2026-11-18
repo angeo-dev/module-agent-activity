@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace Angeo\AgentActivity\Model\Report;
 
+use Angeo\AgentActivity\Model\EventRepository;
 use Angeo\AgentActivity\Model\Insights;
 use Angeo\AgentActivity\Model\Insights\Rules;
 use Angeo\AgentActivity\Model\Report;
@@ -15,11 +16,13 @@ use Angeo\AgentActivity\Model\Report;
 /**
  * The report as CSV or JSON.
  *
- * CSV comes in two shapes: the whole report in one file (one block per
- * section, separated by a blank line, each with its own header row), or a
- * single section as a plain table that opens cleanly in a spreadsheet or
- * loads into pandas, BigQuery or similar. JSON holds every section plus the
- * findings and the facts behind them, for scripts and monitoring.
+ * CSV comes in three shapes: the whole report in one file (a "Report"
+ * block with the period and data start, then one block per section, each
+ * with its own header row), a single section as a plain table, or a ZIP
+ * with one plain table per section. Plain tables open cleanly in a
+ * spreadsheet and load into pandas, BigQuery or similar. JSON holds every
+ * section plus the findings and the facts behind them, for scripts and
+ * monitoring.
  */
 class CsvExport
 {
@@ -34,15 +37,46 @@ class CsvExport
         'paths'      => 'Most fetched pages',
         'mcp'        => 'MCP clients',
         'tools'      => 'Tool calls',
+        'query_keys' => 'Query parameters',
         'orders'     => 'Agent-built orders',
     ];
 
-    private const PAGE_CATEGORIES = ['training', 'search', 'user_fetch', 'agent', 'search_engine', 'other', 'platform'];
+    private const PAGE_CATEGORIES = [
+        'training', 'search', 'user_fetch', 'agent', 'search_engine', 'other', 'platform', 'unknown',
+    ];
 
     public function __construct(
         private readonly Report $report,
-        private readonly Insights $insights
+        private readonly Insights $insights,
+        private readonly EventRepository $events
     ) {
+    }
+
+    /**
+     * ZIP archive with report.csv (period facts) and one plain CSV per
+     * section, or null when ext-zip is missing.
+     */
+    public function buildZip(Filter $filter): ?string
+    {
+        if (!class_exists(\ZipArchive::class)) {
+            return null;
+        }
+        $file = tempnam(sys_get_temp_dir(), 'angeo-agents');
+        if ($file === false) {
+            return null;
+        }
+        $zip = new \ZipArchive();
+        if ($zip->open($file, \ZipArchive::OVERWRITE) !== true) {
+            return null;
+        }
+        $zip->addFromString('report.csv', $this->toCsv($this->meta($filter)));
+        foreach (array_keys(self::SECTIONS) as $code) {
+            $zip->addFromString($code . '.csv', $this->toCsv($this->rows($code, $filter)));
+        }
+        $zip->close();
+        $data = (string) file_get_contents($file);
+        unlink($file);
+        return $data;
     }
 
     /**
@@ -54,9 +88,10 @@ class CsvExport
             return $this->toCsv($this->rows($section, $filter));
         }
 
-        $out = [];
-        $out[] = ['AI agent activity', $filter->from, $filter->to,
-            $filter->storeId !== null ? 'store ' . $filter->storeId : 'all stores'];
+        $out = [['# Report']];
+        foreach ($this->meta($filter) as $row) {
+            $out[] = $row;
+        }
         foreach (array_keys(self::SECTIONS) as $code) {
             $out[] = [];
             $out[] = ['# ' . self::SECTIONS[$code]];
@@ -65,6 +100,26 @@ class CsvExport
             }
         }
         return $this->toCsv($out);
+    }
+
+    /**
+     * Period facts as key/value rows. "data_from" is the first day with
+     * events: days before it are empty because tracking had not started.
+     *
+     * @return array<int, array<int, mixed>>
+     */
+    private function meta(Filter $filter): array
+    {
+        $first = $this->events->firstDay();
+        return [
+            ['key', 'value'],
+            ['report', 'AI agent activity'],
+            ['from', $filter->from],
+            ['to', $filter->to],
+            ['store', $filter->storeId !== null ? (string) $filter->storeId : 'all'],
+            ['data_from', $first !== null ? max($first, $filter->from) : ''],
+            ['generated_at', gmdate('Y-m-d H:i:s') . ' UTC'],
+        ];
     }
 
     /**
@@ -84,6 +139,7 @@ class CsvExport
             'from'        => $filter->from,
             'to'          => $filter->to,
             'store_id'    => $filter->storeId,
+            'data_from'   => $this->events->firstDay(),
             'findings'    => $findings,
             'facts'       => $this->insights->facts($filter),
             'totals'      => $this->report->totals($filter),
@@ -99,6 +155,7 @@ class CsvExport
                 'versions' => $this->report->mcpVersions($filter),
             ],
             'tools'       => $this->report->byTool($filter, 1000),
+            'query_keys'  => $this->report->queryKeys($filter, 100),
             'status'      => $this->report->statusMix($filter),
             'orders'      => [
                 'by_channel' => $this->report->ordersByChannel($filter),
@@ -129,7 +186,7 @@ class CsvExport
             'daily'      => $this->daily($filter),
             'agents'     => $this->table(
                 ['agent', 'operator', 'category', 'calls', 'errors', 'verified', 'spoofed', 'behind_proxy',
-                    'signed', 'avg_ms', 'last_day'],
+                    'unchecked', 'signed', 'avg_ms', 'last_day'],
                 $this->report->byAgent($filter, 1000)
             ),
             'operations' => $this->table(
@@ -150,6 +207,7 @@ class CsvExport
                 ['channel', 'tool', 'calls', 'errors', 'clients', 'avg_ms'],
                 $this->report->byTool($filter, 1000)
             ),
+            'query_keys' => $this->table(['key', 'calls'], $this->report->queryKeys($filter, 100)),
             'orders'     => $this->table(
                 ['created_at', 'channel', 'agent', 'order_id', 'increment_id', 'value', 'currency'],
                 $this->report->recentOrders($filter, 1000)

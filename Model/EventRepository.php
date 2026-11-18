@@ -35,7 +35,7 @@ class EventRepository
      * @param int|null $verified IpVerifier::STATE_* or null when not checked
      * @param int|null $durationMs time from request start to response
      * @param array{order_id?: int, value?: float, currency?: string} $order for agent-built orders
-     * @param array{rpc_error?: bool, cache?: ?bool, has_query?: bool} $facts response facts
+     * @param array{rpc_error?: bool, cache?: ?bool, has_query?: bool, query_keys?: ?string} $facts response facts
      */
     public function add(
         array $event,
@@ -71,6 +71,8 @@ class EventRepository
             'rpc_error'      => !empty($facts['rpc_error']) ? 1 : 0,
             'cache'          => $cache === null ? null : ($cache ? 1 : 0),
             'has_query'      => !empty($facts['has_query']) ? 1 : 0,
+            'query_keys'     => isset($facts['query_keys']) && $facts['query_keys'] !== ''
+                ? mb_substr((string) $facts['query_keys'], 0, 255) : null,
         ]);
     }
 

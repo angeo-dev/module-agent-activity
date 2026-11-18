@@ -43,6 +43,9 @@ class Report extends Template
      * @param Aggregator $aggregator
      * @param TimezoneInterface $timezone
      * @param Json $json
+     * @param Insights $insights
+     * @param EventRepository $events
+     * @param Catalog $catalog
      * @param array<string, mixed> $data
      */
     public function __construct(
@@ -54,6 +57,7 @@ class Report extends Template
         private readonly Json $json,
         private readonly Insights $insights,
         private readonly EventRepository $events,
+        private readonly Catalog $catalog,
         array $data = []
     ) {
         parent::__construct($context, $data);
@@ -132,7 +136,7 @@ class Report extends Template
 
     /**
      * @param string $section one of CsvExport::SECTIONS, or '' for the whole report
-     * @param string $format csv or json
+     * @param string $format csv, json or zip
      */
     public function getExportUrl(string $section = '', string $format = 'csv'): string
     {
@@ -396,6 +400,24 @@ class Report extends Template
         $parts = parse_url($decoded);
         $from = ($parts['path'] ?? '/') . (isset($parts['query']) ? '?' . $parts['query'] : '');
         return $m[1] . ' ← ' . $from;
+    }
+
+    /**
+     * Query parameter names crawlers used, busiest first.
+     *
+     * @return array<int, array{key: string, calls: int}>
+     */
+    public function getQueryKeys(): array
+    {
+        return $this->memo['queryKeys'] ??= $this->report->queryKeys($this->getFilter(), 15);
+    }
+
+    /**
+     * Whether the agent's vendor publishes an IP list (so "not checked" means the list is missing).
+     */
+    public function hasIpList(string $agent): bool
+    {
+        return $this->catalog->hasRanges($agent);
     }
 
     /**

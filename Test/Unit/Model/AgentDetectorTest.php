@@ -78,7 +78,22 @@ class AgentDetectorTest extends TestCase
     {
         $id = $this->detector->detect('', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 Safari/605.1.15');
         self::assertSame('unknown', $id->name);
+        self::assertSame(Catalog::CATEGORY_UNKNOWN, $id->category, 'unknown is not an agent platform');
         self::assertFalse($id->isKnownAiAgent());
+    }
+
+    public function testExaSignatureIsAiSearch(): void
+    {
+        $id = $this->detector->detect('', 'Mozilla/5.0', 'sig1="https://crawler.exa.ai"', 'sig1=();tag="web-bot-auth"');
+        self::assertSame('exa', $id->name);
+        self::assertSame(Catalog::CATEGORY_SEARCH, $id->category);
+    }
+
+    public function testTestToolsAreRecognised(): void
+    {
+        self::assertTrue(Catalog::isTestTool('angeo-agentic-scan'));
+        self::assertTrue(Catalog::isTestTool('mcp-inspector'));
+        self::assertFalse(Catalog::isTestTool('claude-code'));
     }
 
     public function testWebBotAuthSignatureNamesABrowsingAgent(): void

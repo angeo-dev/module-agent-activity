@@ -80,7 +80,7 @@
         </column>
         <column name="store_id" component="Magento_Ui/js/grid/columns/select" sortOrder="30">
             <settings>
-                <options class="Magento\Store\Ui\Component\Listing\Column\Store\Options"/>
+                <options class="Angeo\AgentActivity\Model\Source\StoreView"/>
                 <filter>select</filter>
                 <dataType>select</dataType>
                 <label translate="true">Store View</label>
@@ -205,6 +205,13 @@
                 <filter>select</filter>
                 <dataType>select</dataType>
                 <label translate="true">Query String</label>
+                <visible>false</visible>
+            </settings>
+        </column>
+        <column name="query_keys" sortOrder="148">
+            <settings>
+                <filter>text</filter>
+                <label translate="true">Query Parameters</label>
                 <visible>false</visible>
             </settings>
         </column>

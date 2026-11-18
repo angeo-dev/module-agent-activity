@@ -8,11 +8,13 @@ declare(strict_types=1);
 
 namespace Angeo\AgentActivity\Model;
 
+use Angeo\AgentActivity\Model\Agent\Catalog;
 use Angeo\AgentActivity\Model\Report\Filter;
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\DB\Sql\Expression;
 use Magento\Framework\DB\Adapter\AdapterInterface;
 use Magento\Framework\DB\Select;
+use Magento\Framework\FlagManager;
 
 /**
  * Report queries. Everything reads the daily totals (Aggregator) except the
@@ -41,8 +43,16 @@ class Report
     /** Page types that a crawler has no business fetching. */
     public const WASTE_PAGES = ['account', 'cart', 'checkout', 'search'];
 
+    /**
+     * Flag: first UTC day whose crawler paths are the URLs the crawler asked
+     * for. Before 1.2.0 routed pages were stored with their rewrite target
+     * (/catalog/category/view/id/…), so raw URL counts start on this day.
+     */
+    public const FLAG_PATHS_FIXED = 'angeo_agent_activity_paths_fixed_on';
+
     public function __construct(
-        private readonly ResourceConnection $resource
+        private readonly ResourceConnection $resource,
+        private readonly FlagManager $flagManager
     ) {
     }
 
@@ -153,7 +163,8 @@ class Report
      * @param Filter $filter
      * @param int $limit
      * @return array<int, array{agent: string, operator: string, category: string, calls: int, errors: int,
-     *     verified: int, spoofed: int, behind_proxy: int, signed: int, avg_ms: int, last_day: string}>
+     *     verified: int, spoofed: int, behind_proxy: int, unchecked: int, signed: int, avg_ms: int,
+     *     last_day: string}>
      */
     public function byAgent(Filter $filter, int $limit = 25): array
     {
@@ -168,6 +179,7 @@ class Report
                     'verified' => new Expression('SUM(IF(verified_state = ' . self::VERIFIED . ', calls, 0))'),
                     'spoofed'  => new Expression('SUM(IF(verified_state = ' . self::SPOOFED . ', calls, 0))'),
                     'proxy'    => new Expression('SUM(IF(verified_state = ' . self::BEHIND_PROXY . ', calls, 0))'),
+                    'unchecked' => new Expression('SUM(IF(verified_state = ' . self::UNCHECKED . ', calls, 0))'),
                     'signed'   => new Expression('SUM(signed)'),
                     'avg_ms'   => new Expression('SUM(duration_sum) / NULLIF(SUM(duration_count), 0)'),
                     'last_day' => new Expression('MAX(day)'),
@@ -185,6 +197,7 @@ class Report
             'verified' => (int) $r['verified'],
             'spoofed'  => (int) $r['spoofed'],
             'behind_proxy' => (int) $r['proxy'],
+            'unchecked' => (int) $r['unchecked'],
             'signed'   => (int) $r['signed'],
             'avg_ms'   => (int) round((float) $r['avg_ms']),
             'last_day' => (string) $r['last_day'],
@@ -610,7 +623,7 @@ class Report
             ->from($this->resource->getTableName(Aggregator::PATH_TABLE), [
                 'path', 'calls' => new Expression('SUM(calls)'),
             ])
-            ->where('day >= ?', $filter->from)
+            ->where('day >= ?', max($filter->from, $this->pathsFixedOn()))
             ->where('day <= ?', $filter->to)
             ->where("path LIKE '/catalog/product/view/%' OR path LIKE '/catalog/category/view/%'")
             ->group('path')
@@ -634,9 +647,10 @@ class Report
      *
      * @param Filter $filter
      * @param int $limit
+     * @param bool $withoutTestTools leave out audit and test tools (Catalog::TEST_TOOLS)
      * @return array<int, array{path: string, status: int, calls: int, agents: int}>
      */
-    public function errorPaths(Filter $filter, int $limit = 10): array
+    public function errorPaths(Filter $filter, int $limit = 10, bool $withoutTestTools = false): array
     {
         $connection = $this->connection();
         $select = $connection->select()
@@ -653,6 +667,11 @@ class Report
             ->group([new Expression('IFNULL(path, operation)'), 'status'])
             ->order('calls DESC')
             ->limit($limit);
+        if ($withoutTestTools) {
+            foreach (Catalog::TEST_TOOLS as $prefix) {
+                $select->where('agent NOT LIKE ?', $prefix . '%');
+            }
+        }
         $this->whereStore($select, $filter);
         return array_map(static fn (array $r): array => [
             'path'   => (string) $r['path'],
@@ -660,6 +679,79 @@ class Report
             'calls'  => (int) $r['calls'],
             'agents' => (int) $r['agents'],
         ], $connection->fetchAll($select));
+    }
+
+    /**
+     * Query parameter names crawlers used, busiest first (from the event log).
+     * Each name counts once per call: "climate,price" adds one to each.
+     *
+     * @param Filter $filter
+     * @param int $limit
+     * @return array<int, array{key: string, calls: int}>
+     */
+    public function queryKeys(Filter $filter, int $limit = 20): array
+    {
+        $connection = $this->connection();
+        $select = $connection->select()
+            ->from($this->resource->getTableName(EventRepository::TABLE), [
+                'query_keys',
+                'calls' => new Expression('COUNT(*)'),
+            ])
+            ->where('channel = ?', RequestClassifier::CHANNEL_CRAWLER)
+            ->where('query_keys IS NOT NULL')
+            ->where('created_at >= ?', $filter->from . ' 00:00:00')
+            ->where('created_at < ?', gmdate('Y-m-d', (int) strtotime($filter->to . ' +1 day')) . ' 00:00:00')
+            ->group('query_keys')
+            ->order('calls DESC')
+            ->limit(1000);
+        $this->whereStore($select, $filter);
+        $counts = [];
+        foreach ($connection->fetchAll($select) as $row) {
+            foreach (explode(',', (string) $row['query_keys']) as $key) {
+                if ($key !== '') {
+                    $counts[$key] = ($counts[$key] ?? 0) + (int) $row['calls'];
+                }
+            }
+        }
+        arsort($counts);
+        $out = [];
+        foreach (array_slice($counts, 0, $limit, true) as $key => $calls) {
+            $out[] = ['key' => (string) $key, 'calls' => $calls];
+        }
+        return $out;
+    }
+
+    /**
+     * robots.txt fetches answered with a redirect (3xx). Many crawlers do
+     * not follow a robots.txt redirect to another host and then treat the
+     * site as having no rules.
+     *
+     * @param Filter $filter
+     * @return array{calls: int, agents: array<int, string>}
+     */
+    public function robotsRedirects(Filter $filter): array
+    {
+        $rows = $this->connection()->fetchAll(
+            $this->callsSelect($filter)
+                ->columns(['agent', 'calls' => new Expression('SUM(status_3xx)')])
+                ->where('operation = ?', 'robots.txt')
+                ->group('agent')
+                ->having('SUM(status_3xx) > 0')
+                ->order('calls DESC')
+        );
+        return [
+            'calls'  => (int) array_sum(array_column($rows, 'calls')),
+            'agents' => array_map(static fn (array $r): string => (string) $r['agent'], $rows),
+        ];
+    }
+
+    /**
+     * First UTC day with trustworthy crawler paths (see FLAG_PATHS_FIXED).
+     */
+    public function pathsFixedOn(): string
+    {
+        $day = $this->flagManager->getFlagData(self::FLAG_PATHS_FIXED);
+        return is_string($day) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $day) ? $day : '1970-01-01';
     }
 
     /**

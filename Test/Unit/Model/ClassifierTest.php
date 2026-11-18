@@ -132,4 +132,14 @@ class ClassifierTest extends TestCase
         $api = (new RequestClassifier())->classify('POST', '/ucp/v1/catalog/search', '', true);
         self::assertNull($api['path'] ?? null, 'API calls do not store a path');
     }
+
+    public function testQueryKeysKeepNamesNotValues(): void
+    {
+        self::assertSame('climate,new,p', RequestClassifier::queryKeys('p=2&new=1&climate=205&new=0'));
+        self::assertSame('color,utm_source', RequestClassifier::queryKeys('utm_source=mail%40x.com&COLOR[]=5'));
+        self::assertNull(RequestClassifier::queryKeys(''));
+        self::assertNull(RequestClassifier::queryKeys('123=a&=b'));
+        $many = implode('&', array_map(static fn (int $i): string => 'k' . $i . '=1', range(1, 30)));
+        self::assertCount(10, explode(',', (string) RequestClassifier::queryKeys($many)));
+    }
 }

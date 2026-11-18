@@ -12,13 +12,15 @@ namespace Angeo\AgentActivity\Model\Insights;
  * Turns report facts into findings a store owner can act on.
  *
  * Pure: takes the facts gathered by Model\Insights, returns findings sorted
- * by level. Each finding has a stable code (for CLI, JSON and monitoring),
- * a level, a short title, one or two sentences of detail and the number it
- * is based on. Texts are plain English and go through __() in the block.
+ * by level and then by impact. Each finding has a stable code (for CLI,
+ * JSON and monitoring), a level, a short title, one or two sentences of
+ * detail, the number it is based on ("count", which may be a time in ms)
+ * and the number of calls it affects ("weight", used for sorting). Texts
+ * are plain English and go through __() in the block.
  *
- * Thresholds are deliberately low: the report is read by people, and a
- * small store with ten crawler visits still wants to know that half of them
- * went to the login page.
+ * Thresholds are low: a small store with ten crawler visits still wants to
+ * know that half of them went to the login page. But a single event is not
+ * a pattern, so error and funnel findings need MIN_SAMPLE events.
  */
 class Rules
 {
@@ -35,13 +37,16 @@ class Rules
     /** Fewer days of data than this gets a "young data" note. */
     public const YOUNG_DAYS = 7;
 
+    /** Fewer events than this are not reported as a pattern (errors, MCP funnel). */
+    public const MIN_SAMPLE = 3;
+
     /** AI categories: the ones an AEO store cares about. */
     private const AI_CATEGORIES = ['training', 'search', 'user_fetch', 'agent'];
 
     /**
      * @param array<string, mixed> $facts see Model\Insights::facts()
      * @return array<int, array{code: string, level: string, title: string, detail: string, count: int,
-     *     args: array<int, string|int>}>
+     *     weight: int, args: array<int, string|int>}>
      */
     public function evaluate(array $facts): array
     {
@@ -80,22 +85,40 @@ class Rules
         ));
         if ($missingLists !== []) {
             $calls = array_sum(array_column($missingLists, 'calls'));
+            $status = $facts['ranges_status'] ?? null;
+            if (!is_array($status)) {
+                $last = 'The download never ran: cron is probably not running.';
+            } elseif ((int) $status['failed'] > 0) {
+                $errors = is_array($status['errors'] ?? null) ? $status['errors'] : [];
+                $last = sprintf(
+                    'Last download %s: %d of %d lists failed (%s). Check outgoing HTTPS from the server.',
+                    gmdate('Y-m-d H:i', (int) $status['ran_at']) . ' UTC',
+                    (int) $status['failed'],
+                    (int) $status['failed'] + (int) $status['ok'],
+                    (string) (reset($errors) ?: 'unknown error')
+                );
+            } else {
+                $last = sprintf(
+                    'Last download %s was fine; these lists are new. Run the command again.',
+                    gmdate('Y-m-d H:i', (int) $status['ran_at']) . ' UTC'
+                );
+            }
             $out[] = self::finding(
                 'ip_lists_missing',
                 self::WARNING,
-                'Vendor IP lists are not downloaded',
-                '%1 calls from bots with a published IP list were not checked, because the list is not stored yet '
-                . '(%2). '
-                . 'Run bin/magento angeo:agents:refresh-ranges and check that cron runs.',
+                'Bot IP check is not working: vendor IP lists are missing',
+                '%1 calls from bots with a published IP list were not checked (%2), so fake bots cannot be told '
+                . 'apart. %3 Run bin/magento angeo:agents:refresh-ranges and check that cron runs.',
                 $calls,
-                [$calls, implode(', ', array_column($missingLists, 'agent'))]
+                [$calls, implode(', ', array_column($missingLists, 'agent')), $last],
+                $calls
             );
         }
 
         // MCP: clients that look but never use a tool.
         $mcpLook = (int) ($mcp['discover'] ?? 0) + (int) ($mcp['list'] ?? 0);
         $mcpCalls = (int) ($mcp['tool_calls'] ?? 0);
-        if ($mcpLook > 0 && $mcpCalls === 0) {
+        if ($mcpLook >= self::MIN_SAMPLE && $mcpCalls === 0) {
             $out[] = self::finding(
                 'mcp_no_tool_calls',
                 self::WARNING,
@@ -106,7 +129,7 @@ class Rules
                 $mcpLook,
                 [$mcpLook]
             );
-        } elseif ($mcpCalls > 0 && (int) ($mcp['cart'] ?? 0) === 0) {
+        } elseif ($mcpCalls >= self::MIN_SAMPLE && (int) ($mcp['cart'] ?? 0) === 0) {
             $out[] = self::finding(
                 'mcp_no_cart',
                 self::INFO,
@@ -202,7 +225,9 @@ class Rules
                 $share >= 5 ? self::WARNING : self::INFO,
                 'Crawlers fetch account, cart, checkout or search pages',
                 '%1 crawler calls (%2% of all) went to pages with no content for them: %3. Add Disallow rules for '
-                . '/customer/, /checkout/, /wishlist/ and /catalogsearch/ to robots.txt.',
+                . '/customer/, /checkout/, /wishlist/ and /catalogsearch/ to robots.txt: in the User-agent: * group '
+                . 'and in every bot group, because a bot with its own group ignores the * group. '
+                . 'angeo/module-robots-txt-aeo 4.1+ does this (Crawl Hygiene).',
                 $waste,
                 [$waste, $share, (string) ($facts['waste_detail'] ?? '')]
             );
@@ -219,7 +244,8 @@ class Rules
                 self::WARNING,
                 'Crawlers use URLs without a URL rewrite',
                 '%1 fetches of system URLs such as %2. These pages compete with the real product and category '
-                . 'URLs. Check the canonical tag, the sitemap and internal links that point to /catalog/…/view/id/.',
+                . 'URLs. Check the canonical tag, the sitemap, product feeds and internal links that point to '
+                . '/catalog/…/view/id/.',
                 $raw,
                 [$raw, implode(', ', $examples)]
             );
@@ -228,14 +254,36 @@ class Rules
         $queries = (int) ($totals['query_calls'] ?? 0);
         if ($queries > 0 && $crawlerCalls > 0 && $queries / $crawlerCalls >= 0.1) {
             $share = (int) round($queries / $crawlerCalls * 100);
+            $keys = array_map(
+                static fn (array $k): string => $k['key'] . ' (' . $k['calls'] . ')',
+                array_slice($facts['query_keys'] ?? [], 0, 5)
+            );
             $out[] = self::finding(
                 'query_urls',
-                self::INFO,
+                $share >= 30 ? self::WARNING : self::INFO,
                 'Many crawler calls carry a query string',
                 '%1 calls (%2%) had URL parameters: layered navigation filters, sorting or tracking. These create '
-                . 'many copies of the same page.',
+                . 'many copies of the same page. %3',
                 $queries,
-                [$queries, $share]
+                [$queries, $share, $keys !== []
+                    ? 'Most used parameters: ' . implode(', ', $keys) . '. Block the filter ones in robots.txt '
+                        . '(Disallow: /*?*name=) or make them nofollow.'
+                    : 'Block filter parameters in robots.txt (Disallow: /*?*name=) or make them nofollow.'],
+                $queries
+            );
+        }
+
+        $redirects = (int) ($facts['robots_redirects']['calls'] ?? 0);
+        if ($redirects > 0) {
+            $out[] = self::finding(
+                'robots_redirect',
+                self::WARNING,
+                'robots.txt answers with a redirect',
+                '%1 robots.txt fetches got a 3xx answer (%2). Some crawlers do not follow it and then work '
+                . 'without your rules. Serve /robots.txt with HTTP 200 on the final host (check http→https and '
+                . 'www redirects).',
+                $redirects,
+                [$redirects, implode(', ', array_slice($facts['robots_redirects']['agents'] ?? [], 0, 5))]
             );
         }
 
@@ -252,12 +300,16 @@ class Rules
                 'Pages are slow for crawlers',
                 'Crawler page requests take %1 ms on average. %2 Slow pages get crawled less.',
                 $pageMs,
-                [$pageMs, $cache]
+                [$pageMs, $cache],
+                (int) ($facts['page_calls'] ?? 0)
             );
         }
 
         foreach (array_slice($facts['error_paths'] ?? [], 0, 1) as $error) {
             $count = array_sum(array_column($facts['error_paths'], 'calls'));
+            if ($count < self::MIN_SAMPLE) {
+                break;
+            }
             $out[] = self::finding(
                 'agent_errors',
                 self::WARNING,
@@ -295,15 +347,16 @@ class Rules
         usort(
             $out,
             static fn (array $a, array $b): int
-                => (self::LEVEL_ORDER[$a['level']] <=> self::LEVEL_ORDER[$b['level']]) ?: ($b['count'] <=> $a['count'])
+                => (self::LEVEL_ORDER[$a['level']] <=> self::LEVEL_ORDER[$b['level']]) ?: ($b['weight'] <=> $a['weight'])
         );
         return $out;
     }
 
     /**
      * @param array<int, string|int> $args placeholders %1, %2 … in title and detail
+     * @param int|null $weight calls affected, for sorting; defaults to $count
      * @return array{code: string, level: string, title: string, detail: string, count: int,
-     *     args: array<int, string|int>}
+     *     weight: int, args: array<int, string|int>}
      */
     private static function finding(
         string $code,
@@ -311,7 +364,8 @@ class Rules
         string $title,
         string $detail,
         int $count,
-        array $args
+        array $args,
+        ?int $weight = null
     ): array {
         return [
             'code'   => $code,
@@ -319,6 +373,7 @@ class Rules
             'title'  => $title,
             'detail' => $detail,
             'count'  => $count,
+            'weight' => $weight ?? $count,
             'args'   => $args,
         ];
     }

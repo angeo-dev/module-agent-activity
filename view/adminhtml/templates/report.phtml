@@ -90,6 +90,7 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
                 <ul class="aa-export__menu">
                     <li><a href="<?= $escaper->escapeUrl($block->getExportUrl()) ?>"><?= $escaper->escapeHtml(__('Whole report (CSV)')) ?></a></li>
                     <li><a href="<?= $escaper->escapeUrl($block->getExportUrl('', 'json')) ?>"><?= $escaper->escapeHtml(__('Whole report with findings (JSON)')) ?></a></li>
+                    <li><a href="<?= $escaper->escapeUrl($block->getExportUrl('', 'zip')) ?>"><?= $escaper->escapeHtml(__('Every section as its own CSV (ZIP)')) ?></a></li>
                     <?php foreach ($block->getExportSections() as $code => $label): ?>
                         <li><a href="<?= $escaper->escapeUrl($block->getExportUrl($code)) ?>"><?= $escaper->escapeHtml(__('%1 (CSV)', $label)) ?></a></li>
                     <?php endforeach; ?>
@@ -263,7 +264,9 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
                                 <span class="aa-status aa-status--good">&#10003; <?= $escaper->escapeHtml(__('Verified')) ?></span>
                             <?php elseif ($row['behind_proxy'] > 0): ?>
                                 <span class="aa-muted" title="<?= $escaper->escapeHtmlAttr(__('Magento sees a private address. Pass the real client IP from the proxy.')) ?>"><?= $escaper->escapeHtml(__('Behind proxy')) ?></span>
-                            <?php elseif ($row['category'] === 'platform'): ?>
+                            <?php elseif ($row['unchecked'] > 0 && $block->hasIpList($row['agent'])): ?>
+                                <span class="aa-status aa-status--warning" title="<?= $escaper->escapeHtmlAttr(__('Run bin/magento angeo:agents:refresh-ranges or press Refresh.')) ?>"><?= $escaper->escapeHtml(__('Not checked: IP list missing')) ?></span>
+                            <?php elseif ($row['category'] === 'platform' || $row['category'] === 'unknown'): ?>
                                 <span class="aa-muted" title="<?= $escaper->escapeHtmlAttr(__('Agent platforms are named by their UCP profile, not by IP.')) ?>">&mdash;</span>
                             <?php else: ?>
                                 <span class="aa-muted"><?= $escaper->escapeHtml(__('No vendor IP list')) ?></span>
@@ -523,6 +526,28 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
                         <td class="aa-num"><?= (int) $row['agent'] ?></td>
                         <td class="aa-num"><?= (int) $row['search_engine'] ?></td>
                         <td class="aa-num"><?= (int) $row['other'] ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
+
+    <?php $queryKeys = $block->getQueryKeys(); ?>
+    <?php if ($queryKeys !== []): ?>
+        <h2 class="aa-h2"><?= $escaper->escapeHtml(__('Query parameters crawlers use')) ?></h2>
+        <p class="aa-note"><?= $escaper->escapeHtml(__('Parameter names only, no values. Filter and sort parameters make many copies of one page; block them in robots.txt with Disallow: /*?*name=.')) ?></p>
+        <div class="admin__data-grid-wrap">
+            <table class="data-grid aa-table">
+                <thead><tr>
+                    <th class="data-grid-th"><?= $escaper->escapeHtml(__('Parameter')) ?></th>
+                    <th class="data-grid-th aa-num"><?= $escaper->escapeHtml(__('Calls')) ?></th>
+                </tr></thead>
+                <tbody>
+                <?php foreach ($queryKeys as $row): ?>
+                    <tr>
+                        <td><code><?= $escaper->escapeHtml($row['key']) ?></code></td>
+                        <td class="aa-num"><?= (int) $row['calls'] ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>

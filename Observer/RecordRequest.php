@@ -14,6 +14,7 @@ use Angeo\AgentActivity\Model\AgentDetector;
 use Angeo\AgentActivity\Model\Config;
 use Angeo\AgentActivity\Model\EventRepository;
 use Angeo\AgentActivity\Model\PageCacheState;
+use Angeo\AgentActivity\Model\PageTypeResolver;
 use Angeo\AgentActivity\Model\RequestClassifier;
 use Angeo\AgentActivity\Model\Verify\IpVerifier;
 use Magento\Checkout\Model\Session as CheckoutSession;
@@ -52,7 +53,8 @@ class RecordRequest implements ObserverInterface
         private readonly CheckoutSession $checkoutSession,
         private readonly Catalog $catalog,
         private readonly PageCacheState $pageCache,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly PageTypeResolver $pageTypes
     ) {
     }
 
@@ -96,9 +98,7 @@ class RecordRequest implements ObserverInterface
             && $this->config->logCrawlers()
             && ($identity->category !== Catalog::CATEGORY_SEARCH_ENGINE || $this->config->logSearchEngines());
 
-        $uriPath = (string) (parse_url((string) $request->getRequestUri(), PHP_URL_PATH) ?: '');
-        $pathInfo = (string) $request->getPathInfo();
-        $path = $pathInfo !== '' && $pathInfo !== '/' ? $pathInfo : $uriPath;
+        $path = $this->requestPath($request);
         $body = str_ends_with(rtrim($path, '/'), '/mcp')
             ? substr((string) $request->getContent(), 0, self::MCP_BODY_LIMIT)
             : '';
@@ -110,7 +110,7 @@ class RecordRequest implements ObserverInterface
             $isAiAgent,
             $identity->category === Catalog::CATEGORY_AGENT,
             $body,
-            (string) $request->getFullActionName(),
+            $this->actionName($request, $path, $isAiAgent),
             (string) $request->getHeader('Mcp-Method'),
             (string) $request->getHeader('Mcp-Name')
         );
@@ -131,6 +131,7 @@ class RecordRequest implements ObserverInterface
         $status = $response !== null ? (int) $response->getHttpResponseCode() : 0;
 
         $isMcp = $event['channel'] === RequestClassifier::CHANNEL_MCP;
+        $query = (string) parse_url((string) $request->getRequestUri(), PHP_URL_QUERY);
         $this->events->add(
             $event,
             $identity,
@@ -143,7 +144,9 @@ class RecordRequest implements ObserverInterface
                 'rpc_error' => $isMcp && $response !== null && $status < 400
                     && RequestClassifier::isRpcError(substr((string) $response->getContent(), 0, self::RESPONSE_PEEK)),
                 'cache'     => $event['channel'] === RequestClassifier::CHANNEL_CRAWLER ? $this->pageCache->get() : null,
-                'has_query' => (string) parse_url((string) $request->getRequestUri(), PHP_URL_QUERY) !== '',
+                'has_query'  => $query !== '',
+                'query_keys' => $event['channel'] === RequestClassifier::CHANNEL_CRAWLER
+                    ? RequestClassifier::queryKeys($query) : null,
             ]
         );
 
@@ -157,6 +160,39 @@ class RecordRequest implements ObserverInterface
                 $identity->name
             );
         }
+    }
+
+    /**
+     * The path the client asked for, without query string and store code.
+     *
+     * getPathInfo() is not used first: after URL rewrite routing it holds
+     * the target ("/catalog/category/view/id/21"), not the URL the crawler
+     * fetched ("/women/tops-women.html"). Up to 1.1.0 this made every routed
+     * category and product page look like a system URL.
+     */
+    private function requestPath(HttpRequest $request): string
+    {
+        $original = (string) $request->getOriginalPathInfo();
+        if ($original !== '' && $original !== '/') {
+            return $original;
+        }
+        $uriPath = (string) (parse_url((string) $request->getRequestUri(), PHP_URL_PATH) ?: '');
+        $pathInfo = (string) $request->getPathInfo();
+        return $uriPath !== '' ? $uriPath : $pathInfo;
+    }
+
+    /**
+     * Magento route of the request. A full page cache hit is answered
+     * before routing, so the route is empty; for crawler requests the URL
+     * rewrite table then names the page type.
+     */
+    private function actionName(HttpRequest $request, string $path, bool $isAiAgent): string
+    {
+        $action = (string) $request->getFullActionName();
+        if (($action === '' || $action === '__') && $isAiAgent) {
+            return $this->pageTypes->actionFor($path, (int) $this->storeManager->getStore()->getId());
+        }
+        return $action === '__' ? '' : $action;
     }
 
     /**

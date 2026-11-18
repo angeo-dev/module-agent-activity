@@ -79,7 +79,7 @@ class AgentDetector
             );
         }
 
-        return new Identity('unknown', '', Catalog::CATEGORY_PLATFORM, Identity::SOURCE_UNKNOWN);
+        return new Identity('unknown', '', Catalog::CATEGORY_UNKNOWN, Identity::SOURCE_UNKNOWN);
     }
 
     /**

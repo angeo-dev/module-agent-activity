@@ -23,7 +23,8 @@
             "rpc_error": true,
             "cache": true,
             "has_query": true,
-            "client": true
+            "client": true,
+            "query_keys": true
         },
         "index": {
             "ANGEO_AGENT_EVENT_CREATED_AT": true,

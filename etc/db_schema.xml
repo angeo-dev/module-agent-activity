@@ -18,7 +18,7 @@
         <column xsi:type="smallint" name="store_id" unsigned="true" nullable="false" default="0" comment="Store ID"/>
         <column xsi:type="varchar" name="channel" nullable="false" length="16" comment="ucp, mcp, webmcp, crawler"/>
         <column xsi:type="varchar" name="category" nullable="false" length="16" default="platform"
-                comment="training, search, user_fetch, agent, search_engine, platform"/>
+                comment="training, search, user_fetch, agent, search_engine, platform, other, unknown"/>
         <column xsi:type="varchar" name="agent" nullable="false" length="64" comment="Agent name"/>
         <column xsi:type="varchar" name="operator" nullable="false" length="64" default="" comment="Company or platform host"/>
         <column xsi:type="varchar" name="operation" nullable="false" length="64" comment="Operation"/>
@@ -42,6 +42,8 @@
                 comment="Full page cache: 1 hit, 0 miss, NULL unknown"/>
         <column xsi:type="smallint" name="has_query" unsigned="true" nullable="false" default="0"
                 comment="URL had a query string (filters, sorting, tracking)"/>
+        <column xsi:type="varchar" name="query_keys" nullable="true" length="255"
+                comment="Query parameter names, no values (crawler pages)"/>
         <constraint xsi:type="primary" referenceId="PRIMARY">
             <column name="event_id"/>
         </constraint>

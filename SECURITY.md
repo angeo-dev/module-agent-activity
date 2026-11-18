@@ -9,8 +9,10 @@ within 72 hours.
 One row per agent request: time, store view, channel, agent name, company,
 operation, HTTP status, duration, IP check result (verified / spoofed /
 behind proxy / not checked), whether a Web Bot Auth signature was present,
-and for crawler pages the URL path, whether the URL had a query string
-(yes/no only) and whether the full page cache served it. For MCP calls: the
+and for crawler pages the URL path, whether the URL had a query string,
+the **names** of its parameters (for example `climate,price`; never the
+values, at most 10 names of `a-z 0-9 _ -`) and whether the full page cache
+served it. For MCP calls: the
 client name, client version and protocol version the client sent in
 `clientInfo` (product names such as `claude-ai`, not people), and whether
 the response was a JSON-RPC error. For agent-built orders: order number,
@@ -21,7 +23,7 @@ memory to find the method, tool name, client name and error flag; neither
 is stored.
 
 **Never stored:** IP address, full user agent, request or response body,
-query string, cookies, customer name, email or address.
+query string values, cookies, customer name, email or address.
 
 ## IP check
 

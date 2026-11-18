@@ -104,4 +104,59 @@ class RulesTest extends TestCase
     {
         self::assertSame('7 of 70%', Rules::render('%1 of %2%', [7, 70]));
     }
+
+    /**
+     * The 30-day demo export (2026-10-17 … 10-24): findings sort by the calls
+     * they affect, a single error is not a pattern, and a single tool call
+     * does not raise the "no cart" note.
+     */
+    public function testImpactOrderAndMinimumSample(): void
+    {
+        $facts = $this->demoFacts();
+        $facts['mcp'] = ['discover' => 189, 'list' => 201, 'tool_calls' => 1, 'cart' => 0, 'checkout' => 0, 'orders' => 0];
+        $facts['raw_urls'] = ['calls' => 474, 'paths' => [['path' => '/catalog/category/view/id/21', 'calls' => 129]]];
+        $facts['unchecked_with_ranges'] = [['agent' => 'googlebot', 'calls' => 710]];
+        $facts['page_avg_ms'] = 1080;
+        $facts['page_calls'] = 300;
+        $facts['error_paths'] = [['path' => 'initialize', 'status' => 401, 'calls' => 1, 'agents' => 1]];
+
+        $findings = (new Rules())->evaluate($facts);
+        $codes = array_column($findings, 'code');
+
+        self::assertSame(['ip_lists_missing', 'raw_urls', 'slow_pages'], array_slice($codes, 0, 3));
+        self::assertNotContains('agent_errors', $codes);
+        self::assertNotContains('mcp_no_cart', $codes);
+        self::assertStringContainsString('never ran', Rules::render($findings[0]['detail'], $findings[0]['args']));
+    }
+
+    public function testIpListStatusExplainsFailedDownload(): void
+    {
+        $facts = $this->demoFacts();
+        $facts['ranges_status'] = [
+            'ran_at' => 1761000000, 'ok' => 8, 'failed' => 2,
+            'errors' => ['https://openai.com/gptbot.json' => 'failed: HTTP 403'],
+        ];
+        $finding = array_values(array_filter(
+            (new Rules())->evaluate($facts),
+            static fn (array $f): bool => $f['code'] === 'ip_lists_missing'
+        ))[0];
+
+        self::assertStringContainsString('2 of 10 lists failed (failed: HTTP 403)', Rules::render($finding['detail'], $finding['args']));
+    }
+
+    public function testQueryKeysAndRobotsRedirect(): void
+    {
+        $facts = $this->demoFacts();
+        $facts['totals']['query_calls'] = 100;
+        $facts['query_keys'] = [['key' => 'climate', 'calls' => 60], ['key' => 'price', 'calls' => 40]];
+        $facts['robots_redirects'] = ['calls' => 2, 'agents' => ['openai-search', 'anthropic-training']];
+
+        $findings = [];
+        foreach ((new Rules())->evaluate($facts) as $f) {
+            $findings[$f['code']] = Rules::render($f['detail'], $f['args']);
+        }
+
+        self::assertStringContainsString('climate (60), price (40)', $findings['query_urls'] ?? '');
+        self::assertStringContainsString('openai-search, anthropic-training', $findings['robots_redirect'] ?? '');
+    }
 }

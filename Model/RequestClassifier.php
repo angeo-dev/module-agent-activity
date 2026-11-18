@@ -191,6 +191,33 @@ class RequestClassifier
     }
 
     /**
+     * Names of the query parameters in a query string, without values:
+     * "climate=205&new=1&p=2" → "climate,new,p". Sorted, at most 10 names
+     * of [a-z0-9_-]. Values are never kept (they may carry tracking ids).
+     */
+    public static function queryKeys(string $query): ?string
+    {
+        if ($query === '') {
+            return null;
+        }
+        $keys = [];
+        foreach (explode('&', substr($query, 0, 4096)) as $pair) {
+            $name = strtolower(rawurldecode(explode('=', $pair, 2)[0]));
+            $name = (string) preg_replace('/\[.*$/', '', $name);
+            $name = (string) preg_replace('/[^a-z0-9_\-]/', '', $name);
+            if ($name !== '' && !ctype_digit($name)) {
+                $keys[$name] = true;
+            }
+        }
+        if ($keys === []) {
+            return null;
+        }
+        $keys = array_keys($keys);
+        sort($keys);
+        return mb_substr(implode(',', array_slice($keys, 0, 10)), 0, 255);
+    }
+
+    /**
      * A short, printable client fact, or null.
      */
     private static function clean(mixed $value, int $max): ?string

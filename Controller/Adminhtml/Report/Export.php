@@ -19,7 +19,9 @@ use Magento\Framework\App\ResponseInterface;
 
 /**
  * Downloads the report for the shown scope: the whole report as CSV, one
- * section as CSV (?section=agents), or everything as JSON (?format=json).
+ * section as CSV (?section=agents), every section as plain CSV files in a
+ * ZIP (?format=zip; falls back to one CSV without ext-zip), or everything
+ * as JSON (?format=json).
  */
 class Export extends Action implements HttpGetActionInterface
 {
@@ -50,6 +52,12 @@ class Export extends Action implements HttpGetActionInterface
         $section = isset(CsvExport::SECTIONS[$section]) ? $section : '';
         $base = sprintf('ai-agent-activity_%s_%s', $filter->from, $filter->to);
 
+        if ($this->getRequest()->getParam('format') === 'zip') {
+            $zip = $this->csvExport->buildZip($filter);
+            if ($zip !== null) {
+                return $this->fileFactory->create($base . '.zip', $zip, DirectoryList::VAR_DIR, 'application/zip');
+            }
+        }
         if ($this->getRequest()->getParam('format') === 'json') {
             return $this->fileFactory->create(
                 $base . '.json',

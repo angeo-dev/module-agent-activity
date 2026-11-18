@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ievgenii Gryshkun (angeo.dev)
  * MIT License — see LICENSE for full terms.
  */
-.angeo-agents { --aa-ink: #0b0b0b; --aa-ink-2: #52514e; --aa-muted: #898781; --aa-line: #e1e0d9; --aa-surface: #fff; --aa-good: #006300; --aa-bad: #d03b3b; }
+.angeo-agents { --aa-ink: #0b0b0b; --aa-ink-2: #52514e; --aa-muted: #898781; --aa-line: #e1e0d9; --aa-surface: #fff; --aa-good: #006300; --aa-warn: #8a5a00; --aa-bad: #d03b3b; }
 .angeo-agents .aa-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; margin: 0 0 12px; }
 .angeo-agents .aa-filters__group { display: flex; gap: 6px; }
 .angeo-agents .aa-filters__field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--aa-ink-2); }
@@ -38,6 +38,7 @@
 .angeo-agents .aa-status { font-weight: 600; white-space: nowrap; }
 .angeo-agents .aa-status--good { color: var(--aa-good); }
 .angeo-agents .aa-status--critical { color: var(--aa-bad); }
+.angeo-agents .aa-status--warning { color: var(--aa-warn); }
 .angeo-agents .aa-details { margin: 20px 0; }
 .angeo-agents .aa-details summary { cursor: pointer; color: #007bdb; }
 .angeo-agents .aa-list { margin: 8px 0 0 18px; }

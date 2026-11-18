@@ -50,6 +50,9 @@ class Catalog
     /** A signed bot that is not a known AI agent (ad verification, monitoring). */
     public const CATEGORY_OTHER = 'other';
 
+    /** Nothing in the request said who sent it (no UCP-Agent, no known user agent, no clientInfo). */
+    public const CATEGORY_UNKNOWN = 'unknown';
+
     private const OPENAI = 'OpenAI';
     private const ANTHROPIC = 'Anthropic';
     private const ANTHROPIC_RANGES = 'https://claude.com/crawling/bots.json';
@@ -132,6 +135,7 @@ class Catalog
     private const SIGNATURE_AGENTS = [
         'chatgpt.com'     => ['name' => 'chatgpt-agent', 'operator' => self::OPENAI, 'category' => self::CATEGORY_AGENT],
         'agent.bot.goog'  => ['name' => 'google-agent', 'operator' => 'Google', 'category' => self::CATEGORY_AGENT],
+        'crawler.exa.ai'  => ['name' => 'exa', 'operator' => 'Exa', 'category' => self::CATEGORY_SEARCH],
     ];
 
     /**
@@ -175,6 +179,9 @@ class Catalog
             if ($agent['name'] === $name) {
                 return ['operator' => $agent['operator'], 'category' => $agent['category']];
             }
+        }
+        if ($name === 'unknown') {
+            return ['operator' => '', 'category' => self::CATEGORY_UNKNOWN];
         }
         return ['operator' => '', 'category' => self::CATEGORY_PLATFORM];
     }
@@ -222,7 +229,15 @@ class Catalog
         'mcp-inspector' => 'MCP Inspector (developer tool)',
         'inspector'     => 'MCP Inspector (developer tool)',
         'mcp-remote'    => 'mcp-remote (proxy)',
+        'angeo'         => 'angeo.dev (scanner)',
     ];
+
+    /**
+     * Test and audit tools. Their calls are logged, but they never count
+     * towards findings: an audit that probes error paths is not a store
+     * problem. Matched as a prefix of the stored agent name.
+     */
+    public const TEST_TOOLS = ['angeo-agentic-scan', 'angeo-', 'mcp-inspector', 'inspector'];
 
     /**
      * Agent name and operator for an MCP client that named itself.
@@ -266,6 +281,19 @@ class Catalog
     }
 
     /**
+     * Whether a stored agent name is a test or audit tool (see TEST_TOOLS).
+     */
+    public static function isTestTool(string $name): bool
+    {
+        foreach (self::TEST_TOOLS as $prefix) {
+            if (str_starts_with($name, $prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * "crawler-key.proximic.com" => "proximic.com".
      */
     private static function operatorFromHost(string $host): string
@@ -289,6 +317,7 @@ class Catalog
             self::CATEGORY_TRAINING      => 'Training crawler',
             self::CATEGORY_SEARCH_ENGINE => 'Search engine',
             self::CATEGORY_OTHER         => 'Other signed bot',
+            self::CATEGORY_UNKNOWN       => 'Unknown client',
         ];
     }
 }
