@@ -113,6 +113,17 @@ bin/magento angeo:agents:aggregate --days=2          # rebuild the totals now
 bin/magento angeo:agents:refresh-ranges              # download the bot IP lists now
 ```
 
+### Reading the report and the AI assistant (1.3.0)
+
+Every section has a one-line "how to read this" under its heading: what the
+numbers count, what they leave out, and what a problem usually looks like.
+
+Install [`angeo/module-ai-assist`](https://github.com/angeo-dev/module-ai-assist)
+to add an "Ask the AI assistant" panel under the report. It explains the
+numbers for the filters on the page and suggests fixes, with your own
+Claude, OpenAI or Gemini key. It gets aggregates only: no IP addresses,
+customers or orders. Off by default.
+
 ## Install
 
 ```bash

@@ -64,3 +64,6 @@
 @media (forced-colors: active) {
     .angeo-agents .aa-legend__key { forced-color-adjust: none; }
 }
+
+/* 1.3.0 — "how to read this" line under each heading */
+.angeo-agents .aa-help { color: var(--aa-muted); font-size: 13px; margin: -4px 0 12px; max-width: 90ch; }

@@ -4,6 +4,26 @@ All notable changes to `angeo/module-agent-activity` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] — 2026-11-08
+
+### Added
+
+- **"How to read this"** line under every section of the report: what the
+  numbers count, what they leave out, and what a typical problem looks like.
+  Texts in `Model/Report/Help` (@api), translatable.
+- **Optional AI assistant.** With `angeo/module-ai-assist` installed and on,
+  the report gets an "Ask the AI assistant" panel. This module answers its
+  `angeo_ai_assist_context` event with the report's aggregates for the
+  filters on the page, after checking `Angeo_AgentActivity::report`. Only
+  aggregates are sent: no IP addresses, customers or order details. No
+  dependency in either direction.
+- `FilterResolver::fromValues()`: the same filter rules from plain values.
+
+### Changed
+
+- `Block\Adminhtml\Report` takes `Help` as an optional last constructor
+  argument, so subclasses using the 1.2 constructor keep working.
+
 ## [1.2.1] - 2026-11-18
 
 ### Fixed

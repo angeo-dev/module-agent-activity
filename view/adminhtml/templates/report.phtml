@@ -37,6 +37,11 @@ $levelLabels = [
 $errorRate = $totals['calls'] > 0 ? round($totals['errors'] / $totals['calls'] * 100, 1) : 0.0;
 $checked = $totals['verified'] + $totals['spoofed'];
 $hasData = $totals['calls'] > 0 || $totals['orders'] > 0;
+// 1.3.0: one plain "how to read this" line under each section heading.
+$help = static function (string $section) use ($block, $escaper): string {
+    $text = $block->getHelp($section);
+    return $text === '' ? '' : '<p class="aa-help">' . $escaper->escapeHtml($text) . '</p>';
+};
 
 $deltaHtml = function (?float $delta) use ($escaper): string {
     if ($delta === null) {
@@ -117,6 +122,7 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
         <?php endif; ?>
     </div>
 
+    <?= /* escaped in $help */ $help('summary') ?>
     <section class="aa-tiles" aria-label="<?= $escaper->escapeHtmlAttr(__('Summary')) ?>">
         <div class="aa-tile">
             <div class="aa-tile__label"><?= $escaper->escapeHtml(__('Agent calls')) ?></div>
@@ -179,6 +185,7 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
     <?php if ($findings !== []): ?>
         <section class="aa-findings" aria-label="<?= $escaper->escapeHtmlAttr(__('Findings')) ?>">
             <h2 class="aa-h2"><?= $escaper->escapeHtml(__('Findings')) ?></h2>
+    <?= /* escaped in $help */ $help('findings') ?>
             <ul class="aa-findings__list">
                 <?php foreach ($findings as $finding): ?>
                     <?php $text = $block->findingText($finding); ?>
@@ -231,6 +238,7 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
     </div>
 
     <h2 class="aa-h2"><?= $escaper->escapeHtml(__('Agents')) ?></h2>
+    <?= /* escaped in $help */ $help('agents') ?>
     <?php if ($agents === []): ?>
         <p class="aa-empty"><?= $escaper->escapeHtml(__('No agents in this period.')) ?></p>
     <?php else: ?>
@@ -283,6 +291,7 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
     <?php endif; ?>
 
     <h2 class="aa-h2"><?= $escaper->escapeHtml(__('MCP clients')) ?></h2>
+    <?= /* escaped in $help */ $help('mcp_clients') ?>
     <?php if ($mcpClients === []): ?>
         <p class="aa-empty"><?= $escaper->escapeHtml(__('No MCP calls in this period.')) ?></p>
     <?php else: ?>
@@ -346,6 +355,7 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
     <?php endif; ?>
 
     <h2 class="aa-h2"><?= $escaper->escapeHtml(__('Tool calls')) ?></h2>
+    <?= /* escaped in $help */ $help('tools') ?>
     <?php if ($tools === []): ?>
         <p class="aa-empty"><?= $escaper->escapeHtml(__('No agent called a tool in this period.')) ?></p>
     <?php else: ?>
@@ -376,6 +386,7 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
     <?php endif; ?>
 
     <h2 class="aa-h2"><?= $escaper->escapeHtml(__('What agents read')) ?></h2>
+    <?= /* escaped in $help */ $help('content') ?>
     <?php if ($mix === []): ?>
         <p class="aa-empty"><?= $escaper->escapeHtml(__('No page fetches by AI crawlers or agents in this period.')) ?></p>
     <?php else: ?>
@@ -413,6 +424,7 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
     <?php endif; ?>
 
     <h2 class="aa-h2"><?= $escaper->escapeHtml(__('Agent-built orders')) ?></h2>
+    <?= /* escaped in $help */ $help('orders') ?>
     <?php if ($ordersByChannel === []): ?>
         <p class="aa-empty"><?= $escaper->escapeHtml(__('No orders from UCP, MCP or WebMCP carts in this period.')) ?></p>
     <?php else: ?>
@@ -467,6 +479,7 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
     <?php endif; ?>
 
     <h2 class="aa-h2"><?= $escaper->escapeHtml(__('Operations')) ?></h2>
+    <?= /* escaped in $help */ $help('operations') ?>
     <?php if ($operations === []): ?>
         <p class="aa-empty"><?= $escaper->escapeHtml(__('No calls in this period.')) ?></p>
     <?php else: ?>
@@ -495,6 +508,7 @@ $deltaHtml = function (?float $delta) use ($escaper): string {
     <?php endif; ?>
 
     <h2 class="aa-h2"><?= $escaper->escapeHtml(__('Most fetched pages')) ?></h2>
+    <?= /* escaped in $help */ $help('paths') ?>
     <?php if ($paths === []): ?>
         <p class="aa-empty"><?= $escaper->escapeHtml(__('No page fetches by AI crawlers or agents in this period.')) ?></p>
     <?php else: ?>

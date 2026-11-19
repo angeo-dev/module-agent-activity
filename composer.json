@@ -2,7 +2,7 @@
     "name": "angeo/module-agent-activity",
     "description": "See what AI agents do in your Magento 2 store: UCP, MCP and WebMCP calls, AI crawler and agent page visits, agent-built orders and revenue. Admin report with charts, event log grid, CSV and CLI reports, bot IP verification. No IP addresses stored.",
     "type": "magento2-module",
-    "version": "1.2.1",
+    "version": "1.3.0",
     "license": "MIT",
     "keywords": [
         "magento2",
@@ -44,7 +44,8 @@
         "angeo/module-ucp-checkout": "Agent-built orders are attributed through UCP checkout sessions",
         "angeo/module-webmcp": "1.0.1+ tags WebMCP tool calls so they show up by tool name",
         "ext-zip": "Export the whole report as a ZIP of plain CSV files, one per section",
-        "angeo/module-robots-txt-aeo": "4.1+ repeats the private-page Disallow rules in every AI bot group and can block the filter parameters this report lists"
+        "angeo/module-robots-txt-aeo": "4.1+ repeats the private-page Disallow rules in every AI bot group and can block the filter parameters this report lists",
+        "angeo/module-ai-assist": "Optional AI assistant on the report: explains the numbers and suggests fixes"
     },
     "autoload": {
         "files": [

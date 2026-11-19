@@ -16,9 +16,11 @@ use Angeo\AgentActivity\Model\Report as ReportModel;
 use Angeo\AgentActivity\Model\Report\CsvExport;
 use Angeo\AgentActivity\Model\Report\Filter;
 use Angeo\AgentActivity\Model\Report\FilterResolver;
+use Angeo\AgentActivity\Model\Report\Help;
 use Angeo\AgentActivity\Model\Source\Channel;
 use Magento\Backend\Block\Template;
 use Magento\Backend\Block\Template\Context;
+use Magento\Framework\App\ObjectManager;
 use Magento\Framework\Serialize\Serializer\Json;
 use Magento\Framework\Stdlib\DateTime\TimezoneInterface;
 
@@ -58,9 +60,22 @@ class Report extends Template
         private readonly Insights $insights,
         private readonly EventRepository $events,
         private readonly Catalog $catalog,
-        array $data = []
+        array $data = [],
+        ?Help $help = null
     ) {
         parent::__construct($context, $data);
+        // Optional and last (1.3.0): subclasses using the 1.2 constructor keep working.
+        $this->help = $help ?? ObjectManager::getInstance()->get(Help::class);
+    }
+
+    private readonly Help $help;
+
+    /**
+     * "How to read this" text for a section of the report (1.3.0).
+     */
+    public function getHelp(string $section): string
+    {
+        return $this->help->get($section);
     }
 
     /**

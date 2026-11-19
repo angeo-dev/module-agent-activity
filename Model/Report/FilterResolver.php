@@ -30,6 +30,24 @@ class FilterResolver
     }
 
     /**
+     * Same rules as fromRequest(), from plain values (the AI assistant passes
+     * the page filters as "period=30&store=1"). Unknown keys are ignored.
+     *
+     * @param array<string, mixed> $params
+     */
+    public function fromValues(array $params): Filter
+    {
+        $store = (string) ($params['store'] ?? '');
+        $storeId = ctype_digit($store) && (int) $store > 0 ? (int) $store : null;
+        $from = (string) ($params['from'] ?? '');
+        $to = (string) ($params['to'] ?? '');
+        $custom = $from !== '' && $to !== '' ? Filter::range($from, $to, $storeId) : null;
+        $period = (int) ($params['period'] ?? self::DEFAULT_PERIOD);
+
+        return $custom ?? Filter::lastDays(in_array($period, self::PERIODS, true) ? $period : self::DEFAULT_PERIOD, $storeId);
+    }
+
+    /**
      * Preset period in use, or 0 when a custom range is in use.
      */
     public function period(RequestInterface $request): int
